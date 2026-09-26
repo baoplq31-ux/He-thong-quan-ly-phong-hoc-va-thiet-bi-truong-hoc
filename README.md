@@ -10,7 +10,8 @@
 
 ---
 
-### Các bước tiến trình (19/9/2026)
+### Báo cáo tiến độ dự án
+## 📌 Tiến độ dự án (19/9/2026)
 
 ### 🔐 1. Phân hệ Hệ thống & Quản trị
 * **Đăng nhập & Điều hướng:** Tự động nhận diện vai trò và hiển thị bảng điều khiển (Dashboard) tương ứng với từng quyền hạn.
@@ -30,3 +31,22 @@
 * **⚠️ Báo hỏng khẩn cấp (Giáo viên):** Báo cáo ngay lập tức trên hệ thống nếu thiết bị gặp sự cố trong quá trình giảng dạy.
 * **🔧 Quản lý bảo trì (Giáo vụ):** Chuyển thiết bị lỗi sang trạng thái "Đang sửa chữa". Hệ thống sẽ tự động khóa, không cho phép đưa thiết bị này vào các đơn đăng ký mới.
 * **📊 Thống kê & Báo cáo:** Xuất dữ liệu thống kê tình trạng kho hiện tại, công suất mượn phòng học và thiết bị theo tuần/tháng.
+
+* ## 📌 Tiến độ dự án 26/09/2026
+
+### 1. Nội dung đã thực hiện hôm nay
+* **Phân tích đối tượng & Phân quyền hệ thống:**
+  * Xác định rõ 4 nhóm đối tượng chính: Admin (Quản trị viên), Cán bộ quản lý thiết bị/phòng, Giáo viên và Học sinh.
+  * Phân định rõ quyền hạn, nhiệm vụ và luồng tương tác của từng vai trò trên website.
+* **Chuẩn hóa & Thiết kế Sơ đồ Hệ thống:**
+  * Vẽ sơ đồ phân cấp đối tượng (Role-Based Access Control) và sơ đồ luồng hoạt động (Workflow).
+* **Mở rộng & Tinh chỉnh Yêu cầu Giao diện Website (UI/UX):**
+  * Tinh chỉnh lại 4 phân hệ chính theo chuẩn tài liệu SRS (Phân hệ Hệ thống, Danh mục Core, Mượn - Trả, Sửa chữa & Báo cáo).
+  * Thiết kế bổ sung các luồng giao diện mở rộng: Báo hỏng khẩn cấp, Phê duyệt đơn mượn kèm lý do từ chối, và Quy trình bàn giao/thu hồi tài sản.
+
+---
+
+### 2. Các điểm cải tiến & Tinh chỉnh trọng tâm (Key Enhancements)
+* **Tối ưu hóa thuật ngữ:** Đổi tên vai trò "Giáo vụ" thành "Cán bộ quản lý thiết bị/phòng" để sát với thực tế vận hành và chuyên nghiệp hơn trong báo cáo.
+* **Bổ sung phân quyền Học sinh:** Đưa học sinh vào luồng người dùng chính (được phép đăng ký mượn dụng cụ thể thao/ngoại khóa) thay vì chỉ phục vụ giáo viên.
+* **Kiểm soát trạng thái tài sản chặt chẽ:** Thêm luồng kiểm tra thiết bị khi trả (Bàn giao ➔ Thu hồi ➔ Đánh giá hư hỏng ➔ Tự động cập nhật trạng thái kho).
