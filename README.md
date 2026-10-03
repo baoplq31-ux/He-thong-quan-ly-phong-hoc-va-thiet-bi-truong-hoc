@@ -32,7 +32,6 @@
 * **🔧 Quản lý bảo trì (Giáo vụ):** Chuyển thiết bị lỗi sang trạng thái "Đang sửa chữa". Hệ thống sẽ tự động khóa, không cho phép đưa thiết bị này vào các đơn đăng ký mới.
 * **📊 Thống kê & Báo cáo:** Xuất dữ liệu thống kê tình trạng kho hiện tại, công suất mượn phòng học và thiết bị theo tuần/tháng.
 
-* ## 📌 Tiến độ dự án 26/09/2026
 
 ### 1. Nội dung đã thực hiện hôm nay
 * **Phân tích đối tượng & Phân quyền hệ thống:**
