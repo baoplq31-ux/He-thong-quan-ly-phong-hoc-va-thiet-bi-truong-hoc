@@ -1,114 +1,128 @@
 "use client";
 
+
 import {
-  ChevronRight,
-  Wrench,
+  ArrowUpRight,
+  CircleCheckBig,
+  MapPin,
+  TriangleAlert,
+  User,
 } from "lucide-react";
 
-import { incidents } from "@/data/mock-data";
-
-import type { Incident } from "@/types";
-
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import type {
+  Incident,
+  IncidentSeverity,
+} from "@/types";
 
-interface IncidentsCardProps {
+type IncidentsCardProps = {
+  incidents: Incident[];
   onOpenIncidents: () => void;
+};
+
+function getSeverityClass(severity: IncidentSeverity) {
+  switch (severity) {
+    case "Thấp":
+      return "border-sky-200 bg-sky-50 text-sky-700";
+
+    case "Trung bình":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+
+    case "Khẩn cấp":
+      return "border-rose-200 bg-rose-50 text-rose-700";
+  }
 }
 
-const severityColors: Record<
-  Incident["severity"],
-  string
-> = {
-  Thấp: "bg-sky-50 text-sky-700",
-  "Trung bình": "bg-amber-50 text-amber-700",
-  "Khẩn cấp": "bg-rose-50 text-rose-700",
-};
-
-const severityBadgeColors: Record<
-  Incident["severity"],
-  string
-> = {
-  Thấp: "bg-sky-100 text-sky-700",
-  "Trung bình": "bg-amber-100 text-amber-700",
-  "Khẩn cấp": "bg-rose-100 text-rose-700",
-};
-
 export function IncidentsCard({
+  incidents,
   onOpenIncidents,
 }: IncidentsCardProps) {
   const openIncidents = incidents
-    .filter((incident) => incident.status !== "Đã xử lý")
+    .filter(
+      (incident) => incident.status !== "Đã xử lý",
+    )
     .slice(0, 3);
 
   return (
-    <Card className="border-slate-200 bg-white shadow-sm">
-      <CardHeader className="grid grid-cols-[1fr_auto] items-start">
+    <Card className="border-slate-200 shadow-sm">
+      <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle className="text-base text-slate-900">
+          <p className="text-sm text-slate-500">
+            Theo dõi xử lý
+          </p>
+          <CardTitle className="mt-1">
             Sự cố cần xử lý
           </CardTitle>
-
-          <CardDescription className="mt-1">
-            Ưu tiên theo mức độ ảnh hưởng
-          </CardDescription>
         </div>
 
         <Button
-          type="button"
           variant="ghost"
-          size="sm"
+          size="icon"
           onClick={onOpenIncidents}
-          className="text-teal-700 hover:bg-teal-50 hover:text-teal-800"
         >
-          Danh sách
-          <ChevronRight className="size-4" />
+          <ArrowUpRight className="size-5" />
         </Button>
       </CardHeader>
 
-      <CardContent className="space-y-2">
-        {openIncidents.length === 0 ? (
-          <div className="rounded-xl bg-emerald-50 p-5 text-center text-sm text-emerald-700">
-            Không có sự cố cần xử lý.
-          </div>
-        ) : (
-          openIncidents.map((incident) => (
-            <button
-              key={incident.id}
-              type="button"
-              onClick={onOpenIncidents}
-              className="flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left transition hover:bg-slate-50"
-            >
-              <span
-                className={`grid size-10 shrink-0 place-items-center rounded-xl ${severityColors[incident.severity]}`}
-              >
-                <Wrench className="size-[18px]" />
-              </span>
+      <CardContent className="space-y-3">
+        {openIncidents.map((incident) => (
+          <div
+            key={incident.id}
+            className="flex gap-3 rounded-xl border border-slate-200 p-4"
+          >
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+              <TriangleAlert className="size-5" />
+            </div>
 
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-slate-900">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <p className="font-medium text-slate-950">
                   {incident.title}
-                </span>
+                </p>
 
-                <span className="block truncate text-xs text-slate-500">
+                <Badge
+                  variant="outline"
+                  className={getSeverityClass(
+                    incident.severity,
+                  )}
+                >
+                  {incident.severity}
+                </Badge>
+              </div>
+
+              <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
+                <span className="flex items-center gap-1">
+                  <MapPin className="size-3.5" />
                   {incident.location}
                 </span>
-              </span>
 
-              <span
-                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${severityBadgeColors[incident.severity]}`}
-              >
-                {incident.severity}
-              </span>
-            </button>
-          ))
+                <span className="flex items-center gap-1">
+                  <User className="size-3.5" />
+                  {incident.reportedBy}
+                </span>
+              </div>
+
+              <p className="mt-2 text-xs font-medium text-blue-600">
+                {incident.status}
+              </p>
+            </div>
+          </div>
+        ))}
+
+        {openIncidents.length === 0 && (
+          <div className="py-10 text-center">
+            <CircleCheckBig className="mx-auto size-9 text-emerald-500" />
+            <p className="mt-2 text-sm text-slate-500">
+              Không còn sự cố cần xử lý.
+            </p>
+          </div>
         )}
       </CardContent>
     </Card>

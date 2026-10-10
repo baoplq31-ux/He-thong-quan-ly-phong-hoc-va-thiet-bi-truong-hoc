@@ -74,3 +74,24 @@ export interface Incident {
   severity: IncidentSeverity;
   status: IncidentStatus;
 }
+
+export type UserRole =
+  | "Quản trị viên"
+  | "Cán bộ thiết bị"
+  | "Giảng viên"
+  | "Sinh viên";
+
+export type UserStatus =
+  | "Hoạt động"
+  | "Đã khóa";
+
+export interface SystemUser {
+  id: number;
+  code: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  department: string;
+  status: UserStatus;
+  lastLogin: string;
+}

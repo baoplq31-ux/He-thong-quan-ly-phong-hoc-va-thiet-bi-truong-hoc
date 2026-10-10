@@ -3,6 +3,7 @@ import type {
   Equipment,
   Incident,
   Room,
+  SystemUser,
 } from "@/types";
 
 export const rooms: Room[] = [
@@ -253,5 +254,68 @@ export const incidents: Incident[] = [
     time: "14:05 · 24/09",
     severity: "Thấp",
     status: "Đã xử lý",
+  },
+];
+
+export const users: SystemUser[] = [
+  {
+    id: 1,
+    code: "QT001",
+    name: "Nguyễn Văn Quản",
+    email: "quan.admin@edufacility.edu.vn",
+    role: "Quản trị viên",
+    department: "Phòng Công nghệ thông tin",
+    status: "Hoạt động",
+    lastLogin: "07/10/2026 08:15",
+  },
+  {
+    id: 2,
+    code: "TB001",
+    name: "Trần Minh Khoa",
+    email: "khoa.thietbi@edufacility.edu.vn",
+    role: "Cán bộ thiết bị",
+    department: "Phòng Quản trị thiết bị",
+    status: "Hoạt động",
+    lastLogin: "07/10/2026 07:40",
+  },
+  {
+    id: 3,
+    code: "GV001",
+    name: "Lê Thu Hà",
+    email: "ha.le@edufacility.edu.vn",
+    role: "Giảng viên",
+    department: "Khoa Công nghệ thông tin",
+    status: "Hoạt động",
+    lastLogin: "06/10/2026 15:20",
+  },
+  {
+    id: 4,
+    code: "GV002",
+    name: "Nguyễn Minh Anh",
+    email: "anh.nguyen@edufacility.edu.vn",
+    role: "Giảng viên",
+    department: "Khoa Kinh tế",
+    status: "Hoạt động",
+    lastLogin: "06/10/2026 09:30",
+  },
+  {
+    id: 5,
+    code: "SV001",
+    name: "Phạm Quốc Bảo",
+    email: "bao.pham@edufacility.edu.vn",
+    role: "Sinh viên",
+    department: "Khoa Công nghệ thông tin",
+    status: "Hoạt động",
+    lastLogin: "05/10/2026 20:10",
+  },
+  {
+    id: 6,
+    code: "SV002",
+    name: "Võ Hoàng Nam",
+    email: "nam.vo@edufacility.edu.vn",
+    role: "Sinh viên",
+    department: "Khoa Cơ khí",
+    status: "Đã khóa",
+    lastLogin: "01/10/2026 10:05",
   },
 ];

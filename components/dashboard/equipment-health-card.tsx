@@ -2,140 +2,124 @@
 
 import {
   ArrowUpRight,
-  Projector,
+  CircleAlert,
+  CircleCheckBig,
+  CircleX,
 } from "lucide-react";
 
-import { equipment } from "@/data/mock-data";
-
-import type { Equipment } from "@/types";
-
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import type { Equipment } from "@/types";
 
-interface EquipmentHealthCardProps {
+type EquipmentHealthCardProps = {
+  equipment: Equipment[];
   onOpenEquipment: () => void;
-}
+};
 
 export function EquipmentHealthCard({
+  equipment,
   onOpenEquipment,
 }: EquipmentHealthCardProps) {
-  function countQuantityByStatus(
-    status: Equipment["status"]
-  ) {
-    return equipment
-      .filter((item) => item.status === status)
-      .reduce(
-        (total, item) => total + item.quantity,
-        0
-      );
-  }
+  const good = equipment.filter(
+    (item) => item.status === "Tốt",
+  ).length;
 
-  const totalEquipment = equipment.reduce(
-    (total, item) => total + item.quantity,
-    0
-  );
+  const checking = equipment.filter(
+    (item) => item.status === "Cần kiểm tra",
+  ).length;
 
-  const goodQuantity =
-    countQuantityByStatus("Tốt");
-
-  const checkQuantity =
-    countQuantityByStatus("Cần kiểm tra");
-
-  const brokenQuantity =
-    countQuantityByStatus("Hỏng");
+  const broken = equipment.filter(
+    (item) => item.status === "Hỏng",
+  ).length;
 
   const healthPercent =
-    totalEquipment === 0
+    equipment.length === 0
       ? 0
-      : Math.round(
-          (goodQuantity / totalEquipment) * 100
-        );
+      : Math.round((good / equipment.length) * 100);
+
+  const statuses = [
+    {
+      label: "Tốt",
+      value: good,
+      icon: CircleCheckBig,
+      color: "text-emerald-400",
+    },
+    {
+      label: "Kiểm tra",
+      value: checking,
+      icon: CircleAlert,
+      color: "text-amber-400",
+    },
+    {
+      label: "Hỏng",
+      value: broken,
+      icon: CircleX,
+      color: "text-rose-400",
+    },
+  ];
 
   return (
-    <Card className="overflow-hidden border-0 bg-[#09283a] text-white shadow-lg">
-      <CardHeader className="grid grid-cols-[1fr_auto] items-start">
+    <Card className="border-0 bg-slate-950 text-white shadow-sm">
+      <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle className="text-base text-white">
+          <p className="text-sm text-slate-400">
+            Tình trạng hệ thống
+          </p>
+          <CardTitle className="mt-1 text-white">
             Sức khỏe thiết bị
           </CardTitle>
-
-          <CardDescription className="mt-1 text-slate-300">
-            Tính theo số lượng thiết bị
-          </CardDescription>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={onOpenEquipment}
-            aria-label="Xem thiết bị"
-            className="text-slate-300 hover:bg-white/10 hover:text-white"
-          >
-            <ArrowUpRight className="size-4" />
-          </Button>
-
-          <span className="grid size-10 place-items-center rounded-xl bg-white/10">
-            <Projector className="size-5 text-teal-300" />
-          </span>
-        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-white hover:bg-white/10 hover:text-white"
+          onClick={onOpenEquipment}
+        >
+          <ArrowUpRight className="size-5" />
+        </Button>
       </CardHeader>
 
       <CardContent>
-        <div className="flex items-end justify-between">
-          <p className="text-4xl font-bold">
+        <div className="flex items-end gap-2">
+          <p className="text-5xl font-semibold">
             {healthPercent}%
           </p>
-
-          <p className="text-sm text-emerald-300">
-            Hoạt động tốt
+          <p className="pb-1 text-sm text-slate-400">
+            hoạt động tốt
           </p>
         </div>
 
         <Progress
           value={healthPercent}
-          className="mt-4 h-2.5 bg-white/10 [&>div]:bg-teal-400"
+          className="mt-5 bg-white/10 [&>div]:bg-emerald-400"
         />
 
-        <div className="mt-5 grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-xl bg-white/5 p-3">
-            <p className="text-xl font-bold text-emerald-300">
-              {goodQuantity}
-            </p>
+        <div className="mt-6 grid grid-cols-3 gap-3">
+          {statuses.map((status) => {
+            const Icon = status.icon;
 
-            <p className="mt-1 text-xs text-slate-300">
-              Tốt
-            </p>
-          </div>
-
-          <div className="rounded-xl bg-white/5 p-3">
-            <p className="text-xl font-bold text-amber-300">
-              {checkQuantity}
-            </p>
-
-            <p className="mt-1 text-xs text-slate-300">
-              Kiểm tra
-            </p>
-          </div>
-
-          <div className="rounded-xl bg-white/5 p-3">
-            <p className="text-xl font-bold text-rose-300">
-              {brokenQuantity}
-            </p>
-
-            <p className="mt-1 text-xs text-slate-300">
-              Hỏng
-            </p>
-          </div>
+            return (
+              <div
+                key={status.label}
+                className="rounded-xl bg-white/5 p-3"
+              >
+                <Icon className={`size-4 ${status.color}`} />
+                <p className="mt-3 text-xl font-semibold">
+                  {status.value}
+                </p>
+                <p className="text-xs text-slate-400">
+                  {status.label}
+                </p>
+              </div>
+            );
+          })}
         </div>
       </CardContent>
     </Card>

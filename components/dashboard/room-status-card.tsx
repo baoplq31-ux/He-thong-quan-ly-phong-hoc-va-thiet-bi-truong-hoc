@@ -2,7 +2,6 @@
 
 import { ChevronRight, DoorOpen } from "lucide-react";
 
-import { rooms } from "@/data/mock-data";
 
 import type { Room } from "@/types";
 
@@ -16,6 +15,7 @@ import {
 } from "@/components/ui/card";
 
 interface RoomStatusCardProps {
+  rooms: Room[];
   onOpenRooms: () => void;
 }
 
@@ -26,6 +26,7 @@ const statusColors: Record<Room["status"], string> = {
 };
 
 export function RoomStatusCard({
+  rooms,
   onOpenRooms,
 }: RoomStatusCardProps) {
   const availableRooms = rooms.filter(

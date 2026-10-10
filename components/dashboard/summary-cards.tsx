@@ -1,55 +1,63 @@
 import {
-  CalendarDays,
-  CircleAlert,
-  DoorOpen,
-  Monitor,
+  AlertTriangle,
+  Building2,
+  ClipboardClock,
+  MonitorCog,
 } from "lucide-react";
 
-import {
-  bookings,
-  equipment,
-  incidents,
+import { Card, CardContent } from "@/components/ui/card";
+import type {
+  Booking,
+  Equipment,
+  Incident,
+  Room,
+} from "@/types";
+
+type SummaryCardsProps = {
+  rooms: Room[];
+  equipment: Equipment[];
+  bookings: Booking[];
+  incidents: Incident[];
+};
+
+export function SummaryCards({
   rooms,
-} from "@/data/mock-data";
-
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-
-export function SummaryCards() {
+  equipment,
+  bookings,
+  incidents,
+}: SummaryCardsProps) {
   const availableRooms = rooms.filter(
-    (room) => room.status === "Đang trống"
+    (room) => room.status === "Đang trống",
   ).length;
 
   const totalEquipment = equipment.reduce(
     (total, item) => total + item.quantity,
-    0
+    0,
   );
 
-  const healthyEquipment = equipment
-    .filter((item) => item.status === "Tốt")
-    .reduce((total, item) => total + item.quantity, 0);
+  const healthyEquipment = equipment.filter(
+    (item) => item.status === "Tốt",
+  ).length;
 
-  const equipmentHealth =
-    totalEquipment === 0
+  const healthRate =
+    equipment.length === 0
       ? 0
       : Math.round(
-          (healthyEquipment / totalEquipment) * 100
+          (healthyEquipment / equipment.length) * 100,
         );
 
   const pendingBookings = bookings.filter(
-    (booking) => booking.status === "Chờ duyệt"
+    (booking) => booking.status === "Chờ duyệt",
   ).length;
 
   const openIncidents = incidents.filter(
-    (incident) => incident.status !== "Đã xử lý"
+    (incident) => incident.status !== "Đã xử lý",
   ).length;
 
   const urgentIncidents = incidents.filter(
-    (incident) => incident.severity === "Khẩn cấp"
+    (incident) =>
+      incident.status !== "Đã xử lý" &&
+      incident.severity === "Khẩn cấp",
   ).length;
 
   const statistics = [
@@ -57,86 +65,66 @@ export function SummaryCards() {
       title: "Tổng số phòng",
       value: rooms.length,
       description: `${availableRooms} phòng đang trống`,
-      icon: DoorOpen,
-      color: "bg-sky-50 text-sky-700",
+      icon: Building2,
+      color: "bg-blue-50 text-blue-700",
     },
     {
       title: "Thiết bị quản lý",
       value: totalEquipment,
-      description: `${equipmentHealth}% hoạt động tốt`,
-      icon: Monitor,
+      description: `${healthRate}% hoạt động tốt`,
+      icon: MonitorCog,
       color: "bg-violet-50 text-violet-700",
     },
     {
-      title: "Lịch đăng ký",
-      value: bookings.length,
-      description: `${pendingBookings} yêu cầu chờ duyệt`,
-      icon: CalendarDays,
+      title: "Yêu cầu chờ duyệt",
+      value: pendingBookings,
+      description: "Yêu cầu đặt phòng",
+      icon: ClipboardClock,
       color: "bg-amber-50 text-amber-700",
     },
     {
       title: "Sự cố đang mở",
       value: openIncidents,
       description: `${urgentIncidents} sự cố khẩn cấp`,
-      icon: CircleAlert,
+      icon: AlertTriangle,
       color: "bg-rose-50 text-rose-700",
     },
   ];
 
   return (
-    <div>
-      <div className="mb-6">
-        <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-teal-700">
-          <span className="size-2 rounded-full bg-teal-500" />
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {statistics.map((statistic) => {
+        const Icon = statistic.icon;
 
-          Hệ thống đang hoạt động ổn định
-        </div>
-
-        <h1 className="text-2xl font-bold tracking-tight text-slate-950 md:text-3xl">
-          Chào buổi sáng, anh Quản
-        </h1>
-
-        <p className="mt-1 text-sm text-slate-500">
-          Học kỳ I · Năm học 2026–2027
-        </p>
-      </div>
-
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {statistics.map((item) => {
-          const Icon = item.icon;
-
-          return (
-            <Card
-              key={item.title}
-              className="border-slate-200 bg-white shadow-sm"
-            >
-              <CardHeader className="grid grid-cols-[1fr_auto] items-start">
-                <div>
-                  <CardTitle className="text-sm font-medium text-slate-500">
-                    {item.title}
-                  </CardTitle>
-
-                  <p className="mt-2 text-3xl font-bold text-slate-950">
-                    {item.value}
-                  </p>
-                </div>
-
-                <div
-                  className={`grid size-11 place-items-center rounded-xl ${item.color}`}
-                >
-                  <Icon className="size-5" />
-                </div>
-              </CardHeader>
-
-              <CardContent>
+        return (
+          <Card
+            key={statistic.title}
+            className="border-slate-200 shadow-sm"
+          >
+            <CardContent className="flex items-start justify-between p-5">
+              <div>
                 <p className="text-sm text-slate-500">
-                  {item.description}
+                  {statistic.title}
                 </p>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </section>
+
+                <p className="mt-2 text-3xl font-semibold text-slate-950">
+                  {statistic.value}
+                </p>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  {statistic.description}
+                </p>
+              </div>
+
+              <div
+                className={`flex size-11 items-center justify-center rounded-xl ${statistic.color}`}
+              >
+                <Icon className="size-5" />
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }

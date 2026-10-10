@@ -3,15 +3,11 @@
 import {
   Building2,
   ChevronRight,
-  Settings2,
+  LogOut,
 } from "lucide-react";
 
-import {
-  navigationItems,
-} from "@/data/navigation";
-
-import type { View } from "@/types";
-
+import { navigationItems } from "@/data/navigation";
+import { canAccessView } from "@/lib/permissions";
 import {
   Sidebar,
   SidebarContent,
@@ -26,92 +22,116 @@ import {
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar";
+import type {
+  SystemUser,
+  View,
+} from "@/types";
 
-interface AppSidebarProps {
+type AppSidebarProps = {
   activeView: View;
+  currentUser: SystemUser;
   onViewChange: (view: View) => void;
+  onLogout: () => void;
+};
+
+function getInitials(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(-2)
+    .map((part) => part.charAt(0))
+    .join("")
+    .toUpperCase();
 }
 
 export function AppSidebar({
   activeView,
+  currentUser,
   onViewChange,
+  onLogout,
 }: AppSidebarProps) {
   const { setOpenMobile } = useSidebar();
 
-  const mainItems = navigationItems.filter(
-    (item) => item.group === "main"
+  const allowedItems = navigationItems.filter(
+    (item) =>
+      canAccessView(currentUser.role, item.id),
   );
 
-  const systemItems = navigationItems.filter(
-    (item) => item.group === "system"
+  const mainItems = allowedItems.filter(
+    (item) => item.group === "main",
+  );
+
+  const systemItems = allowedItems.filter(
+    (item) => item.group === "system",
   );
 
   function handleViewChange(view: View) {
     onViewChange(view);
-
-    // Đóng sidebar sau khi chọn trên điện thoại
     setOpenMobile(false);
   }
 
+  function handleLogout() {
+    setOpenMobile(false);
+    onLogout();
+  }
+
   return (
-    <Sidebar
-      collapsible="offcanvas"
-      className="border-r-0"
-    >
-      <SidebarHeader className="px-5 pb-4 pt-5">
-        <button
-          type="button"
-          onClick={() => handleViewChange("dashboard")}
-          className="flex items-center gap-3 rounded-xl text-left"
-        >
-          <span className="grid size-11 place-items-center rounded-xl bg-teal-400 text-[#062032]">
-            <Building2 className="size-6" />
-          </span>
+    <Sidebar collapsible="icon">
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              size="lg"
+              tooltip="EduFacility"
+              onClick={() =>
+                handleViewChange("dashboard")
+              }
+            >
+              <div className="flex aspect-square size-9 items-center justify-center rounded-xl bg-blue-600 text-white">
+                <Building2 className="size-5" />
+              </div>
 
-          <span>
-            <span className="block font-bold text-white">
-              EduFacility
-            </span>
-
-            <span className="block text-xs text-slate-400">
-              Quản lý cơ sở vật chất
-            </span>
-          </span>
-        </button>
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-semibold">
+                  EduFacility
+                </span>
+                <span className="truncate text-xs text-slate-500">
+                  Quản lý cơ sở vật chất
+                </span>
+              </div>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
 
-      <SidebarContent className="px-3">
-        <SidebarGroup className="p-0">
-          <SidebarGroupLabel className="px-3 text-xs font-bold uppercase tracking-wider text-slate-500">
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>
             Điều hành
           </SidebarGroupLabel>
 
           <SidebarGroupContent>
-            <SidebarMenu className="gap-1.5">
+            <SidebarMenu>
               {mainItems.map((item) => {
                 const Icon = item.icon;
+                const isActive =
+                  activeView === item.id;
 
                 return (
                   <SidebarMenuItem key={item.id}>
                     <SidebarMenuButton
-                      type="button"
                       tooltip={item.label}
-                      isActive={activeView === item.id}
+                      isActive={isActive}
                       onClick={() =>
                         handleViewChange(item.id)
                       }
-                      className="
-                        h-11 rounded-xl px-3 text-[15px]
-                        text-slate-300
-                        hover:bg-white/10 hover:text-white
-                        data-[active=true]:bg-teal-400
-                        data-[active=true]:font-bold
-                        data-[active=true]:text-[#062032]
-                      "
                     >
-                      <Icon className="size-[18px]" />
-
+                      <Icon />
                       <span>{item.label}</span>
+
+                      {isActive && (
+                        <ChevronRight className="ml-auto size-4" />
+                      )}
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 );
@@ -120,76 +140,76 @@ export function AppSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup className="mt-4 p-0">
-          <SidebarGroupLabel className="px-3 text-xs font-bold uppercase tracking-wider text-slate-500">
-            Hệ thống
-          </SidebarGroupLabel>
+        {systemItems.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>
+              Hệ thống
+            </SidebarGroupLabel>
 
-          <SidebarGroupContent>
-            <SidebarMenu className="gap-1.5">
-              {systemItems.map((item) => {
-                const Icon = item.icon;
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {systemItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive =
+                    activeView === item.id;
 
-                return (
-                  <SidebarMenuItem key={item.id}>
-                    <SidebarMenuButton
-                      type="button"
-                      tooltip={item.label}
-                      isActive={activeView === item.id}
-                      onClick={() =>
-                        handleViewChange(item.id)
-                      }
-                      className="
-                        h-11 rounded-xl px-3 text-[15px]
-                        text-slate-300
-                        hover:bg-white/10 hover:text-white
-                        data-[active=true]:bg-teal-400
-                        data-[active=true]:font-bold
-                        data-[active=true]:text-[#062032]
-                      "
-                    >
-                      <Icon className="size-[18px]" />
+                  return (
+                    <SidebarMenuItem key={item.id}>
+                      <SidebarMenuButton
+                        tooltip={item.label}
+                        isActive={isActive}
+                        onClick={() =>
+                          handleViewChange(item.id)
+                        }
+                      >
+                        <Icon />
+                        <span>{item.label}</span>
 
-                      <span>{item.label}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  type="button"
-                  tooltip="Cài đặt"
-                  className="h-11 rounded-xl px-3 text-[15px] text-slate-300 hover:bg-white/10 hover:text-white"
-                >
-                  <Settings2 className="size-[18px]" />
-
-                  <span>Cài đặt</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+                        {isActive && (
+                          <ChevronRight className="ml-auto size-4" />
+                        )}
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
-      <SidebarFooter className="m-3 rounded-2xl border border-white/10 bg-white/5 p-3">
-        <div className="flex items-center gap-3">
-          <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-sky-500 text-sm font-bold text-white">
-            LQ
-          </div>
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              size="lg"
+              tooltip={`${currentUser.name} - ${currentUser.role}`}
+            >
+              <div className="flex aspect-square size-9 items-center justify-center rounded-xl bg-slate-900 text-xs font-semibold text-white">
+                {getInitials(currentUser.name)}
+              </div>
 
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-white">
-              Lê Văn Quản
-            </p>
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-medium">
+                  {currentUser.name}
+                </span>
+                <span className="truncate text-xs text-slate-500">
+                  {currentUser.role}
+                </span>
+              </div>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
 
-            <p className="truncate text-xs text-slate-400">
-              Quản trị viên
-            </p>
-          </div>
-
-          <ChevronRight className="size-4 text-slate-400" />
-        </div>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              tooltip="Đăng xuất"
+              onClick={handleLogout}
+            >
+              <LogOut />
+              <span>Đăng xuất</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
 
       <SidebarRail />
