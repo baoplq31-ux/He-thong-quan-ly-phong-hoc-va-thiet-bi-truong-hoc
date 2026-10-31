@@ -1,29 +1,12 @@
 "use client";
 
-import {
-  useMemo,
-  useState,
-} from "react";
-
-import {
-  DoorOpen,
-  Plus,
-  Search,
-} from "lucide-react";
-
+import { useMemo, useState } from "react";
+import { DoorOpen, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import type {
-  Room,
-  RoomStatus,
-} from "@/types";
-
+import type { Room, RoomStatus } from "@/types";
 import { Button } from "@/components/ui/button";
-
-import {
-  Card,
-} from "@/components/ui/card";
-
+import { Card } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -32,38 +15,24 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RoomFormDialog } from "./room-form-dialog";
 
 interface RoomsViewProps {
   rooms: Room[];
   search: string;
-  onAddRoom: (room: Room) => void;
   canManage: boolean;
+  onAddRoom: (room: Room) => Promise<boolean>;
+  onUpdateRoom: (room: Room) => Promise<boolean>;
+  onDeleteRoom: (id: Room["id"]) => Promise<boolean>;
 }
 
-type RoomFilter =
-  | "all"
-  | RoomStatus;
+type RoomFilter = "all" | RoomStatus;
 
-const statusClasses: Record<
-  RoomStatus,
-  string
-> = {
-  "Đang trống":
-    "border-emerald-200 bg-emerald-50 text-emerald-700",
-
-  "Đang sử dụng":
-    "border-amber-200 bg-amber-50 text-amber-700",
-
-  "Bảo trì":
-    "border-rose-200 bg-rose-50 text-rose-700",
+const statusClasses: Record<RoomStatus, string> = {
+  "Đang trống": "border-emerald-200 bg-emerald-50 text-emerald-700",
+  "Đang sử dụng": "border-amber-200 bg-amber-50 text-amber-700",
+  "Bảo trì": "border-rose-200 bg-rose-50 text-rose-700",
 };
 
 export function RoomsView({
@@ -71,16 +40,18 @@ export function RoomsView({
   search,
   onAddRoom,
   canManage,
+  onUpdateRoom,
+  onDeleteRoom,
 }: RoomsViewProps) {
-  const [statusFilter, setStatusFilter] =
-    useState<RoomFilter>("all");
+  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+  const [deletingId, setDeletingId] = useState<Room["id"] | null>(null);
+  const [statusFilter, setStatusFilter] = useState<RoomFilter>("all");
+  const [dialogOpen, setDialogOpen] = useState(false);
 
-  const [dialogOpen, setDialogOpen] =
-    useState(false);
+  const isDeleting = deletingId !== null;
 
   const filteredRooms = useMemo(() => {
-    const keyword =
-      search.trim().toLowerCase();
+    const keyword = search.trim().toLowerCase();
 
     return rooms.filter((room) => {
       const searchableText = [
@@ -94,19 +65,59 @@ export function RoomsView({
         .join(" ")
         .toLowerCase();
 
-      const matchesSearch =
-        searchableText.includes(keyword);
-
-      const matchesStatus =
-        statusFilter === "all" ||
-        room.status === statusFilter;
-
       return (
-        matchesSearch &&
-        matchesStatus
+        searchableText.includes(keyword) &&
+        (statusFilter === "all" || room.status === statusFilter)
       );
     });
   }, [rooms, search, statusFilter]);
+
+  function openAddDialog() {
+    if (!canManage || isDeleting) return;
+    setEditingRoom(null);
+    setDialogOpen(true);
+  }
+
+  function openEditDialog(room: Room) {
+    if (!canManage || isDeleting) return;
+    setEditingRoom(room);
+    setDialogOpen(true);
+  }
+
+  function handleDialogOpenChange(nextOpen: boolean) {
+    setDialogOpen(nextOpen);
+    if (!nextOpen) setEditingRoom(null);
+  }
+
+  async function handleDeleteRoom(room: Room) {
+    if (isDeleting) return;
+
+    if (!canManage) {
+      toast.error("Bạn không có quyền xóa phòng học.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Bạn có chắc muốn xóa phòng ${room.code}?`,
+    );
+
+    if (!confirmed) return;
+
+    setDeletingId(room.id);
+
+    try {
+      const success = await onDeleteRoom(room.id);
+      if (success) toast.success(`Đã xóa phòng ${room.code}.`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Không thể xóa phòng. Vui lòng thử lại.",
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -114,69 +125,48 @@ export function RoomsView({
         <Tabs
           value={statusFilter}
           onValueChange={(value) =>
-            setStatusFilter(
-              value as RoomFilter
-            )
+            setStatusFilter((value ?? "all") as RoomFilter)
           }
         >
           <TabsList className="h-auto flex-wrap rounded-xl bg-slate-200/60 p-1">
-            <TabsTrigger
-              value="all"
-              className="rounded-lg"
-            >
+            <TabsTrigger value="all" className="rounded-lg">
               Tất cả ({rooms.length})
             </TabsTrigger>
-
-            <TabsTrigger
-              value="Đang trống"
-              className="rounded-lg"
-            >
+            <TabsTrigger value="Đang trống" className="rounded-lg">
               Đang trống
             </TabsTrigger>
-
-            <TabsTrigger
-              value="Đang sử dụng"
-              className="rounded-lg"
-            >
+            <TabsTrigger value="Đang sử dụng" className="rounded-lg">
               Đang sử dụng
             </TabsTrigger>
-
-            <TabsTrigger
-              value="Bảo trì"
-              className="rounded-lg"
-            >
+            <TabsTrigger value="Bảo trì" className="rounded-lg">
               Bảo trì
             </TabsTrigger>
           </TabsList>
         </Tabs>
 
         {canManage && (
-        <Button
-          type="button"
-          onClick={() =>
-            setDialogOpen(true)
-          }
-          className="h-10 rounded-xl bg-[#0b6f6b] text-white hover:bg-[#095e5b]"
-        >
-          <Plus className="size-4" />
-          Thêm phòng học
-        </Button>
+          <Button
+            type="button"
+            disabled={isDeleting}
+            onClick={openAddDialog}
+            className="h-10 rounded-xl bg-[#0b6f6b] text-white hover:bg-[#095e5b]"
+          >
+            <Plus className="size-4" />
+            Thêm phòng học
+          </Button>
         )}
       </div>
 
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500">
           Hiển thị{" "}
-          <strong className="text-slate-800">
-            {filteredRooms.length}
-          </strong>{" "}
+          <strong className="text-slate-800">{filteredRooms.length}</strong>{" "}
           phòng học
         </p>
 
         {search && (
           <p className="hidden text-sm text-slate-500 sm:block">
-            Từ khóa:{" "}
-            <strong>{search}</strong>
+            Từ khóa: <strong>{search}</strong>
           </p>
         )}
       </div>
@@ -184,11 +174,9 @@ export function RoomsView({
       {filteredRooms.length === 0 ? (
         <div className="flex min-h-72 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
           <Search className="mb-3 size-9 text-slate-300" />
-
           <h2 className="font-semibold text-slate-800">
             Không tìm thấy phòng học
           </h2>
-
           <p className="mt-1 text-sm text-slate-500">
             Hãy thử từ khóa hoặc bộ lọc khác.
           </p>
@@ -198,76 +186,40 @@ export function RoomsView({
           <Table>
             <TableHeader className="bg-slate-50">
               <TableRow>
-                <TableHead className="h-12 pl-5">
-                  Phòng học
-                </TableHead>
-
+                <TableHead className="h-12 pl-5">Phòng học</TableHead>
                 <TableHead>Vị trí</TableHead>
-
-                <TableHead>
-                  Loại phòng
-                </TableHead>
-
-                <TableHead>
-                  Sức chứa
-                </TableHead>
-
-                <TableHead>
-                  Thiết bị
-                </TableHead>
-
-                <TableHead>
-                  Trạng thái
-                </TableHead>
-
-                <TableHead className="pr-5 text-right">
-                  Thao tác
-                </TableHead>
+                <TableHead>Loại phòng</TableHead>
+                <TableHead>Sức chứa</TableHead>
+                <TableHead>Thiết bị</TableHead>
+                <TableHead>Trạng thái</TableHead>
+                <TableHead className="pr-5 text-right">Thao tác</TableHead>
               </TableRow>
             </TableHeader>
 
             <TableBody>
               {filteredRooms.map((room) => (
-                <TableRow
-                  key={room.id}
-                  className="h-[72px]"
-                >
+                <TableRow key={room.id} className="h-[72px]">
                   <TableCell className="pl-5">
                     <div className="flex items-center gap-3">
                       <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700">
                         <DoorOpen className="size-[18px]" />
                       </span>
-
                       <div>
-                        <p className="font-bold text-slate-900">
-                          {room.code}
-                        </p>
-
-                        <p className="text-xs text-slate-500">
-                          {room.name}
-                        </p>
+                        <p className="font-bold text-slate-900">{room.code}</p>
+                        <p className="text-xs text-slate-500">{room.name}</p>
                       </div>
                     </div>
                   </TableCell>
 
                   <TableCell>
-                    <p className="font-medium text-slate-700">
-                      {room.building}
-                    </p>
-
-                    <p className="text-xs text-slate-500">
-                      {room.floor}
-                    </p>
+                    <p className="font-medium text-slate-700">{room.building}</p>
+                    <p className="text-xs text-slate-500">{room.floor}</p>
                   </TableCell>
 
-                  <TableCell className="text-slate-600">
-                    {room.type}
-                  </TableCell>
-
+                  <TableCell className="text-slate-600">{room.type}</TableCell>
                   <TableCell className="font-semibold text-slate-700">
                     {room.capacity} chỗ
                   </TableCell>
-
                   <TableCell className="text-slate-600">
                     {room.equipmentCount} thiết bị
                   </TableCell>
@@ -281,19 +233,49 @@ export function RoomsView({
                   </TableCell>
 
                   <TableCell className="pr-5 text-right">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        toast.info(
-                          `${room.code} · ${room.name} · ${room.capacity} chỗ`
-                        )
-                      }
-                      className="text-teal-700"
-                    >
-                      Chi tiết
-                    </Button>
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          toast.info(
+                            `${room.code} · ${room.name} · ${room.capacity} chỗ`,
+                          )
+                        }
+                        className="text-teal-700"
+                      >
+                        Chi tiết
+                      </Button>
+
+                      {canManage && (
+                        <>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={isDeleting}
+                            onClick={() => openEditDialog(room)}
+                            className="gap-1 text-blue-700"
+                          >
+                            <Pencil className="size-3.5" />
+                            Sửa
+                          </Button>
+
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={isDeleting}
+                            onClick={() => void handleDeleteRoom(room)}
+                            className="gap-1 text-rose-600"
+                          >
+                            <Trash2 className="size-3.5" />
+                            {deletingId === room.id ? "Đang xóa..." : "Xóa"}
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -303,12 +285,15 @@ export function RoomsView({
       )}
 
       {canManage && (
-      <RoomFormDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        existingRooms={rooms}
-        onAddRoom={onAddRoom}
-      />
+        <RoomFormDialog
+          key={editingRoom?.id ?? "new-room"}
+          open={dialogOpen}
+          onOpenChange={handleDialogOpenChange}
+          existingRooms={rooms}
+          room={editingRoom}
+          onAddRoom={onAddRoom}
+          onUpdateRoom={onUpdateRoom}
+        />
       )}
     </div>
   );

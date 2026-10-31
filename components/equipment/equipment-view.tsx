@@ -1,5 +1,10 @@
 "use client";
 
+import { Pencil, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+
+import { EquipmentEditDialog } from "@/components/equipment/equipment-edit-dialog";
+
 import { useMemo, useState } from "react";
 import {
   Boxes,
@@ -37,13 +42,16 @@ import type {
   EquipmentStatus,
   Room,
 } from "@/types";
+import { Button } from "../ui/button";
 
 type EquipmentViewProps = {
   equipment: Equipment[];
   rooms: Room[];
   search: string;
   canManage: boolean;
-  onAddEquipment: (equipment: Equipment) => void;
+  onAddEquipment: (equipment: Equipment,) => Promise<boolean>;
+  onUpdateEquipment: (equipment: Equipment) => Promise<boolean>;
+  onDeleteEquipment: (id: number) => Promise<boolean>;
 };
 
 type StatusFilter = "all" | EquipmentStatus;
@@ -66,10 +74,15 @@ export function EquipmentView({
   rooms,
   search,
   onAddEquipment,
+  onUpdateEquipment,
+  onDeleteEquipment,
   canManage,
 }: EquipmentViewProps) {
-  const [statusFilter, setStatusFilter] =
-    useState<StatusFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+
+  const [editingEquipment, setEditingEquipment] = useState<Equipment | null>(null);
+
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const roomNames = useMemo(
     () => new Map(rooms.map((room) => [room.code, room.name])),
@@ -138,6 +151,30 @@ export function EquipmentView({
       className: "bg-amber-50 text-amber-700",
     },
   ];
+
+  const handleDeleteEquipment = async (
+  item: Equipment,
+) => {
+  const confirmed = window.confirm(
+    `Bạn có chắc muốn xóa thiết bị ${item.code}?`,
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  setDeletingId(item.id);
+
+  try {
+    const success = await onDeleteEquipment(item.id);
+
+    if (success) {
+      toast.success(`Đã xóa thiết bị ${item.code}.`);
+    }
+  } finally {
+    setDeletingId(null);
+  }
+};
 
   return (
     <div className="space-y-5">
@@ -224,6 +261,7 @@ export function EquipmentView({
                   <TableHead>Số lượng</TableHead>
                   <TableHead>Tình trạng</TableHead>
                   <TableHead>Kiểm tra gần nhất</TableHead>
+                  <TableHead className="pr-5 text-right">Thao tác</TableHead>
                 </TableRow>
               </TableHeader>
 
@@ -262,12 +300,41 @@ export function EquipmentView({
                     <TableCell className="text-slate-600">
                       {item.lastChecked}
                     </TableCell>
+                    <TableCell className="text-right">
+                    {canManage && (
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setEditingEquipment(item)}
+                        aria-label={`Sửa thiết bị ${item.code}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="text-red-600 hover:text-red-700"
+                        onClick={() =>
+                          void handleDeleteEquipment(item)
+                        }
+                        disabled={deletingId === item.id}
+                        aria-label={`Xóa thiết bị ${item.code}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    )}
+                  </TableCell>
                   </TableRow>
                 ))}
 
                 {filteredEquipment.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-52">
+                    <TableCell colSpan={8} className="h-52">
                       <div className="flex flex-col items-center gap-2 text-slate-500">
                         <SearchX className="size-8" />
                         <p>Không tìm thấy thiết bị phù hợp</p>
@@ -280,6 +347,18 @@ export function EquipmentView({
           </div>
         </CardContent>
       </Card>
+
+      <EquipmentEditDialog
+        equipment={editingEquipment}
+        rooms={rooms}
+        open={editingEquipment !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingEquipment(null);
+          }
+        }}
+        onSave={onUpdateEquipment}
+      />
     </div>
   );
 }

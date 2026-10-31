@@ -45,11 +45,11 @@ type UsersViewProps = {
   users: SystemUser[];
   search: string;
   currentUserId: number;
-  onAddUser: (user: SystemUser) => void;
+  onAddUser: (user: SystemUser) => Promise<boolean>;
   onUpdateStatus: (
     id: number,
     status: UserStatus,
-  ) => void;
+  ) => Promise<boolean>;
 };
 
 type RoleFilter = "all" | UserRole;
@@ -84,6 +84,8 @@ export function UsersView({
   onAddUser,
   onUpdateStatus,
 }: UsersViewProps) {
+  const [isUpdating, setIsUpdating] = useState(false);
+
   const [roleFilter, setRoleFilter] =
     useState<RoleFilter>("all");
 
@@ -197,9 +199,15 @@ export function UsersView({
     },
   ];
 
-  function toggleUserStatus(user: SystemUser) {
+  async function toggleUserStatus(user: SystemUser) {
+    if (isUpdating) {
+      return;
+    }
+
     if (user.id === currentUserId) {
-      toast.error("Bạn không thể khóa tài khoản đang đăng nhập");
+      toast.error(
+        "Bạn không thể khóa tài khoản đang đăng nhập",
+      );
       return;
     }
 
@@ -208,13 +216,30 @@ export function UsersView({
         ? "Đã khóa"
         : "Hoạt động";
 
-    onUpdateStatus(user.id, newStatus);
+    setIsUpdating(true);
 
-    toast.success(
-      newStatus === "Đã khóa"
-        ? `Đã khóa tài khoản ${user.code}`
-        : `Đã mở khóa tài khoản ${user.code}`,
-    );
+    try {
+      const saved = await onUpdateStatus(
+        user.id,
+        newStatus,
+      );
+
+      if (!saved) {
+        return;
+      }
+
+      toast.success(
+        newStatus === "Đã khóa"
+          ? `Đã khóa tài khoản ${user.code}`
+          : `Đã mở khóa tài khoản ${user.code}`,
+      );
+    } catch {
+      toast.error(
+        "Không thể cập nhật tài khoản. Vui lòng thử lại.",
+      );
+    } finally {
+      setIsUpdating(false);
+    }
   }
 
   return (
@@ -387,9 +412,11 @@ export function UsersView({
                         size="sm"
                         variant="outline"
                         className="gap-2"
-                        disabled={user.id === currentUserId}
+                        disabled={
+                          isUpdating || user.id === currentUserId
+                        }
                         onClick={() =>
-                          toggleUserStatus(user)
+                          void toggleUserStatus(user)
                         }
                       >
                         {user.id === currentUserId ? (

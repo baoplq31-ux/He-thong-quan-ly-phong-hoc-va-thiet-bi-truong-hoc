@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import type { FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -15,10 +14,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
 import {
   Select,
   SelectContent,
@@ -26,17 +23,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-import type {
-  Equipment,
-  EquipmentStatus,
-  Room,
-} from "@/types";
+import type { Equipment, EquipmentStatus, Room } from "@/types";
 
 type EquipmentFormDialogProps = {
   equipment: Equipment[];
   rooms: Room[];
-  onAddEquipment: (equipment: Equipment) => void;
+  onAddEquipment: (equipment: Equipment) => Promise<boolean>;
 };
 
 type FormState = {
@@ -50,7 +42,12 @@ type FormState = {
 };
 
 function getToday() {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function createEmptyForm(): FormState {
@@ -67,7 +64,6 @@ function createEmptyForm(): FormState {
 
 function formatDate(date: string) {
   const [year, month, day] = date.split("-");
-
   return `${day}/${month}/${year}`;
 }
 
@@ -77,9 +73,8 @@ export function EquipmentFormDialog({
   onAddEquipment,
 }: EquipmentFormDialogProps) {
   const [open, setOpen] = useState(false);
-
-  const [form, setForm] =
-    useState<FormState>(createEmptyForm());
+  const [isSaving, setIsSaving] = useState(false);
+  const [form, setForm] = useState<FormState>(createEmptyForm);
 
   function updateField<K extends keyof FormState>(
     field: K,
@@ -96,6 +91,10 @@ export function EquipmentFormDialog({
   }
 
   function handleOpenChange(value: boolean) {
+    if (isSaving) {
+      return;
+    }
+
     setOpen(value);
 
     if (!value) {
@@ -103,41 +102,34 @@ export function EquipmentFormDialog({
     }
   }
 
-  function handleSubmit(
-    event: FormEvent<HTMLFormElement>,
-  ) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const normalizedCode = form.code
-      .trim()
-      .toUpperCase();
+    if (isSaving) {
+      return;
+    }
 
+    const normalizedCode = form.code.trim().toUpperCase();
     const quantity = Number(form.quantity);
 
     if (
       !normalizedCode ||
       !form.name.trim() ||
       !form.type.trim() ||
-      !form.room
+      !form.room ||
+      !form.lastChecked
     ) {
       toast.error("Vui lòng nhập đầy đủ thông tin");
       return;
     }
 
-    if (
-      !Number.isInteger(quantity) ||
-      quantity < 1
-    ) {
-      toast.error(
-        "Số lượng phải là số nguyên lớn hơn 0",
-      );
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      toast.error("Số lượng phải là số nguyên lớn hơn 0");
       return;
     }
 
     const duplicatedCode = equipment.some(
-      (item) =>
-        item.code.toLowerCase() ===
-        normalizedCode.toLowerCase(),
+      (item) => item.code.toLowerCase() === normalizedCode.toLowerCase(),
     );
 
     if (duplicatedCode) {
@@ -147,9 +139,7 @@ export function EquipmentFormDialog({
 
     const nextId =
       equipment.length > 0
-        ? Math.max(
-            ...equipment.map((item) => item.id),
-          ) + 1
+        ? Math.max(...equipment.map((item) => item.id)) + 1
         : 1;
 
     const newEquipment: Equipment = {
@@ -160,27 +150,37 @@ export function EquipmentFormDialog({
       room: form.room,
       quantity,
       status: form.status,
-      lastChecked: formatDate(
-        form.lastChecked,
-      ),
+      lastChecked: formatDate(form.lastChecked),
     };
 
-    onAddEquipment(newEquipment);
+    setIsSaving(true);
 
-    toast.success("Đã thêm thiết bị mới");
+    try {
+      const saved = await onAddEquipment(newEquipment);
 
-    resetForm();
-    setOpen(false);
+      if (!saved) {
+        return;
+      }
+
+      resetForm();
+      setOpen(false);
+      toast.success("Đã thêm thiết bị mới");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Không thể lưu thiết bị. Vui lòng thử lại.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={handleOpenChange}
-    >
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger
         render={
-          <Button className="gap-2">
+          <Button type="button" className="gap-2" disabled={isSaving}>
             <Plus className="size-4" />
             Thêm thiết bị
           </Button>
@@ -190,97 +190,62 @@ export function EquipmentFormDialog({
       <DialogContent className="sm:max-w-2xl">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>
-              Thêm thiết bị mới
-            </DialogTitle>
-
+            <DialogTitle>Thêm thiết bị mới</DialogTitle>
             <DialogDescription>
-              Nhập thông tin và chọn phòng sử dụng
-              thiết bị.
+              Nhập thông tin và chọn phòng sử dụng thiết bị.
             </DialogDescription>
           </DialogHeader>
 
           <div className="mt-6 grid gap-5 sm:grid-cols-2">
-            {/* Mã thiết bị */}
             <div className="space-y-2">
-              <Label htmlFor="equipment-code">
-                Mã thiết bị
-              </Label>
-
+              <Label htmlFor="equipment-code">Mã thiết bị</Label>
               <Input
                 id="equipment-code"
                 placeholder="Ví dụ: TB-090"
                 value={form.code}
-                onChange={(event) =>
-                  updateField(
-                    "code",
-                    event.target.value,
-                  )
-                }
+                disabled={isSaving}
+                required
+                onChange={(event) => updateField("code", event.target.value)}
               />
             </div>
 
-            {/* Tên thiết bị */}
             <div className="space-y-2">
-              <Label htmlFor="equipment-name">
-                Tên thiết bị
-              </Label>
-
+              <Label htmlFor="equipment-name">Tên thiết bị</Label>
               <Input
                 id="equipment-name"
                 placeholder="Ví dụ: Máy chiếu Epson"
                 value={form.name}
-                onChange={(event) =>
-                  updateField(
-                    "name",
-                    event.target.value,
-                  )
-                }
+                disabled={isSaving}
+                required
+                onChange={(event) => updateField("name", event.target.value)}
               />
             </div>
 
-            {/* Loại thiết bị */}
             <div className="space-y-2">
-              <Label htmlFor="equipment-type">
-                Loại thiết bị
-              </Label>
-
+              <Label htmlFor="equipment-type">Loại thiết bị</Label>
               <Input
                 id="equipment-type"
                 placeholder="Máy chiếu, máy tính..."
                 value={form.type}
-                onChange={(event) =>
-                  updateField(
-                    "type",
-                    event.target.value,
-                  )
-                }
+                disabled={isSaving}
+                required
+                onChange={(event) => updateField("type", event.target.value)}
               />
             </div>
 
-            {/* Phòng */}
             <div className="space-y-2">
-              <Label>Phòng sử dụng</Label>
-
+              <Label htmlFor="equipment-room">Phòng sử dụng</Label>
               <Select
                 value={form.room}
-                onValueChange={(value) =>
-                  updateField(
-                    "room",
-                    value ?? "",
-                  )
-                }
+                disabled={isSaving}
+                onValueChange={(value) => updateField("room", value ?? "")}
               >
-                <SelectTrigger>
+                <SelectTrigger id="equipment-room">
                   <SelectValue placeholder="Chọn phòng" />
                 </SelectTrigger>
-
                 <SelectContent>
                   {rooms.map((room) => (
-                    <SelectItem
-                      key={room.id}
-                      value={room.code}
-                    >
+                    <SelectItem key={room.id} value={room.code}>
                       {room.code} - {room.name}
                     </SelectItem>
                   ))}
@@ -288,76 +253,58 @@ export function EquipmentFormDialog({
               </Select>
             </div>
 
-            {/* Số lượng */}
             <div className="space-y-2">
-              <Label htmlFor="equipment-quantity">
-                Số lượng
-              </Label>
-
+              <Label htmlFor="equipment-quantity">Số lượng</Label>
               <Input
                 id="equipment-quantity"
                 type="number"
                 min={1}
+                step={1}
                 value={form.quantity}
+                disabled={isSaving}
+                required
                 onChange={(event) =>
-                  updateField(
-                    "quantity",
-                    event.target.value,
-                  )
+                  updateField("quantity", event.target.value)
                 }
               />
             </div>
 
-            {/* Trạng thái */}
             <div className="space-y-2">
-              <Label>Tình trạng</Label>
-
+              <Label htmlFor="equipment-status">Tình trạng</Label>
               <Select
                 value={form.status}
+                disabled={isSaving}
                 onValueChange={(value) => {
-                  if (value !== null) {
-                    updateField(
-                      "status",
-                      value as EquipmentStatus,
-                    );
+                  if (
+                    value === "Tốt" ||
+                    value === "Cần kiểm tra" ||
+                    value === "Hỏng"
+                  ) {
+                    updateField("status", value);
                   }
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger id="equipment-status">
                   <SelectValue />
                 </SelectTrigger>
-
                 <SelectContent>
-                  <SelectItem value="Tốt">
-                    Tốt
-                  </SelectItem>
-
-                  <SelectItem value="Cần kiểm tra">
-                    Cần kiểm tra
-                  </SelectItem>
-
-                  <SelectItem value="Hỏng">
-                    Hỏng
-                  </SelectItem>
+                  <SelectItem value="Tốt">Tốt</SelectItem>
+                  <SelectItem value="Cần kiểm tra">Cần kiểm tra</SelectItem>
+                  <SelectItem value="Hỏng">Hỏng</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Ngày kiểm tra */}
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="last-checked">
-                Ngày kiểm tra gần nhất
-              </Label>
-
+              <Label htmlFor="last-checked">Ngày kiểm tra gần nhất</Label>
               <Input
                 id="last-checked"
                 type="date"
                 value={form.lastChecked}
+                disabled={isSaving}
+                required
                 onChange={(event) =>
-                  updateField(
-                    "lastChecked",
-                    event.target.value,
-                  )
+                  updateField("lastChecked", event.target.value)
                 }
               />
             </div>
@@ -367,13 +314,13 @@ export function EquipmentFormDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={() => setOpen(false)}
+              disabled={isSaving}
+              onClick={() => handleOpenChange(false)}
             >
               Hủy
             </Button>
-
-            <Button type="submit">
-              Lưu thiết bị
+            <Button type="submit" disabled={isSaving}>
+              {isSaving ? "Đang lưu..." : "Lưu thiết bị"}
             </Button>
           </DialogFooter>
         </form>

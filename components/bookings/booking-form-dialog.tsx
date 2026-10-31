@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { CalendarPlus, Plus } from "lucide-react";
+import { useState, type FormEvent } from "react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,7 @@ import type { Booking, Room } from "@/types";
 type BookingFormDialogProps = {
   bookings: Booking[];
   rooms: Room[];
-  onAddBooking: (booking: Booking) => void;
+  onAddBooking: (booking: Booking) => Promise<boolean>;
 };
 
 type FormState = {
@@ -41,7 +41,13 @@ type FormState = {
 };
 
 function getToday() {
-  return new Date().toISOString().slice(0, 10);
+  const today = new Date();
+
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function createInitialForm(): FormState {
@@ -57,6 +63,7 @@ function createInitialForm(): FormState {
 
 function formatDate(value: string) {
   const [year, month, day] = value.split("-");
+
   return `${day}/${month}/${year}`;
 }
 
@@ -74,8 +81,10 @@ export function BookingFormDialog({
   onAddBooking,
 }: BookingFormDialogProps) {
   const [open, setOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
   const [form, setForm] = useState<FormState>(
-    createInitialForm(),
+    createInitialForm,
   );
 
   function updateField<K extends keyof FormState>(
@@ -92,11 +101,31 @@ export function BookingFormDialog({
     setForm(createInitialForm());
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleOpenChange(value: boolean) {
+    if (isSaving) {
+      return;
+    }
+
+    setOpen(value);
+
+    if (!value) {
+      resetForm();
+    }
+  }
+
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
+
+    if (isSaving) {
+      return;
+    }
 
     if (
       !form.date ||
+      !form.startTime ||
+      !form.endTime ||
       !form.room ||
       !form.course.trim() ||
       !form.person.trim()
@@ -134,13 +163,17 @@ export function BookingFormDialog({
     });
 
     if (hasConflict) {
-      toast.error("Phòng đã có lịch trong khoảng thời gian này");
+      toast.error(
+        "Phòng đã có lịch trong khoảng thời gian này",
+      );
       return;
     }
 
     const nextId =
       bookings.length > 0
-        ? Math.max(...bookings.map((booking) => booking.id)) + 1
+        ? Math.max(
+            ...bookings.map((booking) => booking.id),
+          ) + 1
         : 1;
 
     const newBooking: Booking = {
@@ -153,23 +186,31 @@ export function BookingFormDialog({
       status: "Chờ duyệt",
     };
 
-    onAddBooking(newBooking);
-    toast.success("Đã gửi yêu cầu đặt phòng");
+    setIsSaving(true);
 
-    resetForm();
-    setOpen(false);
+    try {
+      const saved = await onAddBooking(newBooking);
+
+      if (!saved) {
+        return;
+      }
+
+      toast.success("Đã gửi yêu cầu đặt phòng");
+      resetForm();
+      setOpen(false);
+    } catch {
+      toast.error(
+        "Không thể gửi yêu cầu đặt phòng. Vui lòng thử lại.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
     <Dialog
       open={open}
-      onOpenChange={(value) => {
-        setOpen(value);
-
-        if (!value) {
-          resetForm();
-        }
-      }}
+      onOpenChange={handleOpenChange}
     >
       <DialogTrigger
         render={
@@ -183,7 +224,10 @@ export function BookingFormDialog({
       <DialogContent className="sm:max-w-2xl">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Tạo yêu cầu đặt phòng</DialogTitle>
+            <DialogTitle>
+              Tạo yêu cầu đặt phòng
+            </DialogTitle>
+
             <DialogDescription>
               Yêu cầu mới sẽ có trạng thái chờ duyệt.
             </DialogDescription>
@@ -191,14 +235,22 @@ export function BookingFormDialog({
 
           <div className="mt-6 grid gap-5 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="booking-date">Ngày sử dụng</Label>
+              <Label htmlFor="booking-date">
+                Ngày sử dụng
+              </Label>
+
               <Input
                 id="booking-date"
                 type="date"
                 min={getToday()}
                 value={form.date}
+                disabled={isSaving}
+                required
                 onChange={(event) =>
-                  updateField("date", event.target.value)
+                  updateField(
+                    "date",
+                    event.target.value,
+                  )
                 }
               />
             </div>
@@ -208,6 +260,7 @@ export function BookingFormDialog({
 
               <Select
                 value={form.room}
+                disabled={isSaving}
                 onValueChange={(value) =>
                   updateField("room", value ?? "")
                 }
@@ -234,49 +287,81 @@ export function BookingFormDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="start-time">Giờ bắt đầu</Label>
+              <Label htmlFor="start-time">
+                Giờ bắt đầu
+              </Label>
+
               <Input
                 id="start-time"
                 type="time"
                 value={form.startTime}
+                disabled={isSaving}
+                required
                 onChange={(event) =>
-                  updateField("startTime", event.target.value)
+                  updateField(
+                    "startTime",
+                    event.target.value,
+                  )
                 }
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="end-time">Giờ kết thúc</Label>
+              <Label htmlFor="end-time">
+                Giờ kết thúc
+              </Label>
+
               <Input
                 id="end-time"
                 type="time"
                 value={form.endTime}
+                disabled={isSaving}
+                required
                 onChange={(event) =>
-                  updateField("endTime", event.target.value)
+                  updateField(
+                    "endTime",
+                    event.target.value,
+                  )
                 }
               />
             </div>
 
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="course">Môn học/Nội dung</Label>
+              <Label htmlFor="course">
+                Môn học/Nội dung
+              </Label>
+
               <Input
                 id="course"
                 placeholder="Ví dụ: Thiết kế hệ thống thông tin"
                 value={form.course}
+                disabled={isSaving}
+                required
                 onChange={(event) =>
-                  updateField("course", event.target.value)
+                  updateField(
+                    "course",
+                    event.target.value,
+                  )
                 }
               />
             </div>
 
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="person">Người đăng ký</Label>
+              <Label htmlFor="person">
+                Người đăng ký
+              </Label>
+
               <Input
                 id="person"
                 placeholder="Nhập họ và tên"
                 value={form.person}
+                disabled={isSaving}
+                required
                 onChange={(event) =>
-                  updateField("person", event.target.value)
+                  updateField(
+                    "person",
+                    event.target.value,
+                  )
                 }
               />
             </div>
@@ -286,12 +371,20 @@ export function BookingFormDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={() => setOpen(false)}
+              disabled={isSaving}
+              onClick={() => handleOpenChange(false)}
             >
               Hủy
             </Button>
 
-            <Button type="submit">Gửi yêu cầu</Button>
+            <Button
+              type="submit"
+              disabled={isSaving}
+            >
+              {isSaving
+                ? "Đang gửi..."
+                : "Gửi yêu cầu"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

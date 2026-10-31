@@ -31,7 +31,7 @@ import type {
 
 type UserFormDialogProps = {
   users: SystemUser[];
-  onAddUser: (user: SystemUser) => void;
+  onAddUser: (user: SystemUser) => Promise<boolean>;
 };
 
 type FormState = {
@@ -57,6 +57,7 @@ export function UserFormDialog({
   onAddUser,
 }: UserFormDialogProps) {
   const [open, setOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [form, setForm] = useState<FormState>(
     createInitialForm(),
   );
@@ -75,8 +76,14 @@ export function UserFormDialog({
     setForm(createInitialForm());
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleSubmit(
+  event: FormEvent<HTMLFormElement>,
+) {
+  event.preventDefault();
+
+  if (isSaving) {
+    return;
+  }
 
     const normalizedCode = form.code.trim().toUpperCase();
     const normalizedEmail = form.email
@@ -138,8 +145,24 @@ export function UserFormDialog({
       lastLogin: "Chưa đăng nhập",
     };
 
-    onAddUser(newUser);
-    toast.success("Đã thêm người dùng mới");
+    setIsSaving(true);
+
+try {
+  const saved = await onAddUser(newUser);
+
+  if (!saved) {
+    return;
+  }
+
+  toast.success(
+    "Đã thêm người dùng. Mật khẩu ban đầu: 123456",
+  );
+
+  resetForm();
+  setOpen(false);
+} finally {
+  setIsSaving(false);
+}
 
     resetForm();
     setOpen(false);
@@ -280,12 +303,13 @@ export function UserFormDialog({
             <Button
               type="button"
               variant="outline"
+              disabled={isSaving}
               onClick={() => setOpen(false)}
             >
               Hủy
             </Button>
 
-            <Button type="submit">
+            <Button type="submit" disabled={isSaving}>
               Tạo tài khoản
             </Button>
           </DialogFooter>

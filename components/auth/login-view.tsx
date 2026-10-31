@@ -6,6 +6,7 @@ import {
   Building2,
   Eye,
   EyeOff,
+  LoaderCircle,
   ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -20,89 +21,67 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type {
-  SystemUser,
-  UserRole,
-} from "@/types";
 
 type LoginViewProps = {
-  users: SystemUser[];
-  onLogin: (user: SystemUser) => void;
+  onLogin: (
+    loginName: string,
+    password: string,
+  ) => Promise<boolean>;
 };
 
-const DEMO_PASSWORD = "123456";
-
-const demoRoles: UserRole[] = [
-  "Quản trị viên",
-  "Cán bộ thiết bị",
-  "Giảng viên",
-  "Sinh viên",
+const demoAccounts = [
+  {
+    role: "Quản trị viên",
+    code: "QT001",
+  },
+  {
+    role: "Cán bộ thiết bị",
+    code: "TB001",
+  },
+  {
+    role: "Giảng viên",
+    code: "GV001",
+  },
+  {
+    role: "Sinh viên",
+    code: "SV001",
+  },
 ];
 
 export function LoginView({
-  users,
   onLogin,
 }: LoginViewProps) {
   const [loginName, setLoginName] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] =
     useState(false);
+  const [isSubmitting, setIsSubmitting] =
+    useState(false);
 
-  const demoAccounts = demoRoles
-    .map((role) =>
-      users.find(
-        (user) =>
-          user.role === role &&
-          user.status === "Hoạt động",
-      ),
-    )
-    .filter(
-      (user): user is SystemUser =>
-        user !== undefined,
-    );
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
 
-    const normalizedLogin = loginName
-      .trim()
-      .toLowerCase();
-
-    if (!normalizedLogin || !password) {
+    if (!loginName.trim() || !password) {
       toast.error(
         "Vui lòng nhập tài khoản và mật khẩu",
       );
       return;
     }
 
-    const account = users.find(
-      (user) =>
-        user.email.toLowerCase() === normalizedLogin ||
-        user.code.toLowerCase() === normalizedLogin,
-    );
+    setIsSubmitting(true);
 
-    if (!account) {
-      toast.error("Tài khoản không tồn tại");
-      return;
+    try {
+      await onLogin(loginName, password);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    if (account.status === "Đã khóa") {
-      toast.error("Tài khoản này đã bị khóa");
-      return;
-    }
-
-    if (password !== DEMO_PASSWORD) {
-      toast.error("Mật khẩu không chính xác");
-      return;
-    }
-
-    onLogin(account);
-    toast.success(`Xin chào ${account.name}`);
   }
 
-  function selectDemoAccount(user: SystemUser) {
-    setLoginName(user.email);
-    setPassword(DEMO_PASSWORD);
+  function selectDemoAccount(code: string) {
+    setLoginName(code);
+    setPassword("123456");
   }
 
   return (
@@ -132,12 +111,13 @@ export function LoginView({
           </div>
 
           <h1 className="text-4xl font-semibold leading-tight">
-            Quản lý phòng học và thiết bị trong một hệ thống
+            Quản lý phòng học và thiết bị trong một
+            hệ thống
           </h1>
 
           <p className="mt-5 text-lg leading-8 text-slate-400">
-            Theo dõi phòng học, thiết bị, lịch đăng ký,
-            sự cố và báo cáo thống kê theo từng vai trò.
+            Dữ liệu tài khoản đang được xác thực trực
+            tiếp từ cơ sở dữ liệu SQLite.
           </p>
         </div>
 
@@ -154,7 +134,9 @@ export function LoginView({
             </div>
 
             <div>
-              <p className="font-semibold">EduFacility</p>
+              <p className="font-semibold">
+                EduFacility
+              </p>
               <p className="text-xs text-slate-500">
                 Quản lý cơ sở vật chất
               </p>
@@ -168,7 +150,7 @@ export function LoginView({
               </CardTitle>
 
               <CardDescription>
-                Nhập email hoặc mã người dùng để tiếp tục.
+                Nhập email hoặc mã người dùng.
               </CardDescription>
             </CardHeader>
 
@@ -184,8 +166,9 @@ export function LoginView({
 
                   <Input
                     id="login-name"
-                    placeholder="QT001 hoặc email"
+                    placeholder="Ví dụ: QT001"
                     autoComplete="username"
+                    disabled={isSubmitting}
                     value={loginName}
                     onChange={(event) =>
                       setLoginName(event.target.value)
@@ -202,11 +185,14 @@ export function LoginView({
                     <Input
                       id="password"
                       type={
-                        showPassword ? "text" : "password"
+                        showPassword
+                          ? "text"
+                          : "password"
                       }
                       className="pr-11"
                       placeholder="Nhập mật khẩu"
                       autoComplete="current-password"
+                      disabled={isSubmitting}
                       value={password}
                       onChange={(event) =>
                         setPassword(event.target.value)
@@ -215,9 +201,12 @@ export function LoginView({
 
                     <button
                       type="button"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                      disabled={isSubmitting}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 disabled:opacity-50"
                       onClick={() =>
-                        setShowPassword((current) => !current)
+                        setShowPassword(
+                          (current) => !current,
+                        )
                       }
                     >
                       {showPassword ? (
@@ -231,9 +220,16 @@ export function LoginView({
 
                 <Button
                   type="submit"
-                  className="w-full"
+                  className="w-full gap-2"
+                  disabled={isSubmitting}
                 >
-                  Đăng nhập
+                  {isSubmitting && (
+                    <LoaderCircle className="size-4 animate-spin" />
+                  )}
+
+                  {isSubmitting
+                    ? "Đang đăng nhập..."
+                    : "Đăng nhập"}
                 </Button>
               </form>
 
@@ -252,22 +248,24 @@ export function LoginView({
                 </div>
 
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {demoAccounts.map((user) => (
+                  {demoAccounts.map((account) => (
                     <Button
-                      key={user.id}
+                      key={account.code}
                       type="button"
                       variant="outline"
+                      disabled={isSubmitting}
                       className="h-auto justify-start px-3 py-2 text-left"
                       onClick={() =>
-                        selectDemoAccount(user)
+                        selectDemoAccount(account.code)
                       }
                     >
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-medium">
-                          {user.role}
+                      <span>
+                        <span className="block text-sm font-medium">
+                          {account.role}
                         </span>
-                        <span className="block truncate text-xs font-normal text-slate-500">
-                          {user.code}
+
+                        <span className="block text-xs font-normal text-slate-500">
+                          {account.code}
                         </span>
                       </span>
                     </Button>

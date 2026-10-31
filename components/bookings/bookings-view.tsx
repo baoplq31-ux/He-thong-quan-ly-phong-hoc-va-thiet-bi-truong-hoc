@@ -6,9 +6,12 @@ import {
   CircleCheckBig,
   CircleX,
   Clock3,
+  Pencil,
   SearchX,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { BookingEditDialog } from "./booking-edit-dialog";
 
 import { BookingFormDialog } from "./booking-form-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +37,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
 import type {
   Booking,
   BookingStatus,
@@ -44,12 +48,19 @@ type BookingsViewProps = {
   bookings: Booking[];
   rooms: Room[];
   search: string;
-  onAddBooking: (booking: Booking) => void;
+  onAddBooking: (booking: Booking) => Promise<boolean>;
   onUpdateStatus: (
     id: number,
     status: BookingStatus,
-  ) => void;
+  ) => Promise<boolean>;
   canApprove: boolean;
+  onUpdateBooking: (
+  booking: Booking,
+) => Promise<boolean>;
+
+onDeleteBooking: (
+  id: Booking["id"],
+) => Promise<boolean>;
 };
 
 type StatusFilter = "all" | BookingStatus;
@@ -64,6 +75,9 @@ function getStatusClass(status: BookingStatus) {
 
     case "Từ chối":
       return "border-rose-200 bg-rose-50 text-rose-700";
+
+    default:
+      return "";
   }
 }
 
@@ -74,9 +88,86 @@ export function BookingsView({
   onAddBooking,
   onUpdateStatus,
   canApprove,
+  onUpdateBooking,
+  onDeleteBooking,
 }: BookingsViewProps) {
   const [statusFilter, setStatusFilter] =
     useState<StatusFilter>("all");
+
+  const [isUpdating, setIsUpdating] =
+    useState(false);
+
+  const [editingBooking, setEditingBooking] =
+    useState<Booking | null>(null);
+
+  const [deletingId, setDeletingId] =
+    useState<Booking["id"] | null>(null);
+
+  async function handleChangeStatus(
+    id: number,
+    status: BookingStatus,
+  ) {
+    if (isUpdating) {
+      return;
+    }
+
+    setIsUpdating(true);
+
+    try {
+      const saved = await onUpdateStatus(id, status);
+
+      if (saved) {
+        toast.success(
+          status === "Đã duyệt"
+            ? "Đã duyệt lịch đặt phòng"
+            : "Đã từ chối lịch đặt phòng",
+        );
+      } else {
+        toast.error("Không thể cập nhật trạng thái");
+      }
+    } catch (error) {
+      console.error(
+        "Lỗi cập nhật trạng thái booking:",
+        error,
+      );
+
+      toast.error(
+        "Có lỗi xảy ra khi cập nhật trạng thái",
+      );
+    } finally {
+      setIsUpdating(false);
+    }
+  }
+
+  async function handleDeleteBooking(
+  booking: Booking,
+) {
+  if (!canApprove || deletingId !== null) {
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Bạn có chắc muốn xóa lịch “${booking.course}”?`,
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  setDeletingId(booking.id);
+
+  try {
+    const deleted = await onDeleteBooking(
+      booking.id,
+    );
+
+    if (deleted) {
+      toast.success("Đã xóa lịch đặt phòng.");
+    }
+  } finally {
+    setDeletingId(null);
+  }
+}
 
   const filteredBookings = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -104,15 +195,18 @@ export function BookingsView({
   }, [bookings, search, statusFilter]);
 
   const pending = bookings.filter(
-    (booking) => booking.status === "Chờ duyệt",
+    (booking) =>
+      booking.status === "Chờ duyệt",
   ).length;
 
   const approved = bookings.filter(
-    (booking) => booking.status === "Đã duyệt",
+    (booking) =>
+      booking.status === "Đã duyệt",
   ).length;
 
   const rejected = bookings.filter(
-    (booking) => booking.status === "Từ chối",
+    (booking) =>
+      booking.status === "Từ chối",
   ).length;
 
   const summaries = [
@@ -142,26 +236,16 @@ export function BookingsView({
     },
   ];
 
-  function updateStatus(
-    id: number,
-    status: BookingStatus,
-  ) {
-    onUpdateStatus(id, status);
-
-    toast.success(
-      status === "Đã duyệt"
-        ? "Đã duyệt yêu cầu đặt phòng"
-        : "Đã từ chối yêu cầu",
-    );
-  }
-
   return (
+    <>
     <div className="space-y-5">
+      {/* Header */}
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h2 className="text-2xl font-semibold text-slate-950">
             Quản lý lịch đặt phòng
           </h2>
+
           <p className="mt-1 text-sm text-slate-500">
             Tiếp nhận và xử lý các yêu cầu sử dụng phòng.
           </p>
@@ -174,6 +258,7 @@ export function BookingsView({
         />
       </div>
 
+      {/* Summary */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {summaries.map((item) => {
           const Icon = item.icon;
@@ -191,6 +276,7 @@ export function BookingsView({
                   <p className="text-sm text-slate-500">
                     {item.title}
                   </p>
+
                   <p className="text-2xl font-semibold">
                     {item.value}
                   </p>
@@ -201,14 +287,19 @@ export function BookingsView({
         })}
       </div>
 
+      {/* Booking table */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4">
-          <CardTitle>Danh sách yêu cầu</CardTitle>
+          <CardTitle>
+            Danh sách yêu cầu
+          </CardTitle>
 
           <Select
             value={statusFilter}
             onValueChange={(value) =>
-              setStatusFilter(value as StatusFilter)
+              setStatusFilter(
+                value as StatusFilter,
+              )
             }
           >
             <SelectTrigger className="w-44">
@@ -219,12 +310,15 @@ export function BookingsView({
               <SelectItem value="all">
                 Tất cả trạng thái
               </SelectItem>
+
               <SelectItem value="Chờ duyệt">
                 Chờ duyệt
               </SelectItem>
+
               <SelectItem value="Đã duyệt">
                 Đã duyệt
               </SelectItem>
+
               <SelectItem value="Từ chối">
                 Từ chối
               </SelectItem>
@@ -237,54 +331,86 @@ export function BookingsView({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Thời gian</TableHead>
-                  <TableHead>Phòng</TableHead>
-                  <TableHead>Nội dung</TableHead>
-                  <TableHead>Người đăng ký</TableHead>
-                  <TableHead>Trạng thái</TableHead>
-                  <TableHead>Thao tác</TableHead>
+                  <TableHead>
+                    Thời gian
+                  </TableHead>
+
+                  <TableHead>
+                    Phòng
+                  </TableHead>
+
+                  <TableHead>
+                    Nội dung
+                  </TableHead>
+
+                  <TableHead>
+                    Người đăng ký
+                  </TableHead>
+
+                  <TableHead>
+                    Trạng thái
+                  </TableHead>
+
+                  <TableHead>
+                    Thao tác
+                  </TableHead>
                 </TableRow>
               </TableHeader>
 
               <TableBody>
-                {filteredBookings.map((booking) => (
-                  <TableRow key={booking.id}>
-                    <TableCell>
-                      <p className="font-medium">
-                        {booking.date}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {booking.time}
-                      </p>
-                    </TableCell>
+                {filteredBookings.map(
+                  (booking) => (
+                    <TableRow
+                      key={booking.id}
+                    >
+                      {/* Time */}
+                      <TableCell>
+                        <p className="font-medium">
+                          {booking.date}
+                        </p>
 
-                    <TableCell className="font-medium">
-                      {booking.room}
-                    </TableCell>
+                        <p className="text-xs text-slate-500">
+                          {booking.time}
+                        </p>
+                      </TableCell>
 
-                    <TableCell>{booking.course}</TableCell>
+                      {/* Room */}
+                      <TableCell className="font-medium">
+                        {booking.room}
+                      </TableCell>
 
-                    <TableCell>{booking.person}</TableCell>
+                      {/* Course */}
+                      <TableCell>
+                        {booking.course}
+                      </TableCell>
 
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={getStatusClass(
-                          booking.status,
-                        )}
-                      >
-                        {booking.status}
-                      </Badge>
-                    </TableCell>
+                      {/* Person */}
+                      <TableCell>
+                        {booking.person}
+                      </TableCell>
 
-                    <TableCell>
-                        {booking.status === "Chờ duyệt" ? (
-    canApprove ? (
-      <div className="flex gap-2">
+                      {/* Status */}
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={getStatusClass(
+                            booking.status,
+                          )}
+                        >
+                          {booking.status}
+                        </Badge>
+                      </TableCell>
+
+                      {/* Actions */}
+<TableCell>
+  <div className="flex items-center gap-2">
+    {booking.status === "Chờ duyệt" && canApprove && (
+      <>
         <Button
           size="sm"
+          disabled={isUpdating}
           onClick={() =>
-            updateStatus(
+            handleChangeStatus(
               booking.id,
               "Đã duyệt",
             )
@@ -297,8 +423,9 @@ export function BookingsView({
           size="sm"
           variant="outline"
           className="text-rose-600"
+          disabled={isUpdating}
           onClick={() =>
-            updateStatus(
+            handleChangeStatus(
               booking.id,
               "Từ chối",
             )
@@ -306,27 +433,65 @@ export function BookingsView({
         >
           Từ chối
         </Button>
-      </div>
-    ) : (
-      <span className="text-sm text-amber-600">
-        Chờ quản lý duyệt
-      </span>
-    )
-  ) : (
-    <span className="text-sm text-slate-400">
-      Đã xử lý
-    </span>
-  )}
-</TableCell>
-                  </TableRow>
-                ))}
+      </>
+    )}
 
-                {filteredBookings.length === 0 && (
+    {canApprove && (
+      <>
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          title="Sửa lịch"
+          disabled={deletingId !== null}
+          onClick={() => {
+            console.log(
+              "CLICK SỬA:",
+              booking,
+            );
+
+            setEditingBooking(booking);
+          }}
+        >
+          <Pencil className="size-4" />
+        </Button>
+
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="text-red-600 hover:text-red-700"
+          title="Xóa lịch"
+          disabled={deletingId !== null}
+          onClick={() =>
+            void handleDeleteBooking(booking)
+          }
+        >
+          <Trash2 className="size-4" />
+        </Button>
+      </>
+    )}
+  </div>
+</TableCell>
+                    </TableRow>
+                  ),
+                )}
+
+                {/* Empty state */}
+                {filteredBookings.length ===
+                  0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-52">
+                    <TableCell
+                      colSpan={6}
+                      className="h-52"
+                    >
                       <div className="flex flex-col items-center gap-2 text-slate-500">
                         <SearchX className="size-8" />
-                        <p>Không tìm thấy yêu cầu phù hợp</p>
+
+                        <p>
+                          Không tìm thấy yêu cầu
+                          phù hợp
+                        </p>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -337,5 +502,17 @@ export function BookingsView({
         </CardContent>
       </Card>
     </div>
-  );
+  <BookingEditDialog
+      booking={editingBooking}
+      rooms={rooms}
+      open={editingBooking !== null}
+      onOpenChange={(open) => {
+        if (!open) {
+          setEditingBooking(null);
+        }
+      }}
+      onSave={onUpdateBooking}
+    />
+  </>
+);
 }

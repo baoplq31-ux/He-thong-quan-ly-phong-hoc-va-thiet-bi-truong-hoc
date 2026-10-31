@@ -33,7 +33,7 @@ import type {
 type IncidentFormDialogProps = {
   incidents: Incident[];
   rooms: Room[];
-  onAddIncident: (incident: Incident) => void;
+  onAddIncident: (incident: Incident) => Promise<boolean>;
 };
 
 type FormState = {
@@ -67,6 +67,7 @@ export function IncidentFormDialog({
   rooms,
   onAddIncident,
 }: IncidentFormDialogProps) {
+  const [isSaving, setIsSaving] = useState(false);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState>(
     createInitialForm(),
@@ -86,8 +87,14 @@ export function IncidentFormDialog({
     setForm(createInitialForm());
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleSubmit(
+  event: FormEvent<HTMLFormElement>,
+) {
+  event.preventDefault();
+
+  if (isSaving) {
+    return;
+  }
 
     if (
       !form.title.trim() ||
@@ -115,8 +122,21 @@ export function IncidentFormDialog({
       status: "Mới báo",
     };
 
-    onAddIncident(newIncident);
-    toast.success("Đã gửi báo cáo sự cố");
+    setIsSaving(true);
+
+try {
+  const saved = await onAddIncident(newIncident);
+
+  if (!saved) {
+    return;
+  }
+
+  toast.success("Đã ghi nhận sự cố");
+  resetForm();
+  setOpen(false);
+} finally {
+  setIsSaving(false);
+}
 
     resetForm();
     setOpen(false);
@@ -248,12 +268,13 @@ export function IncidentFormDialog({
             <Button
               type="button"
               variant="outline"
+              disabled={isSaving}
               onClick={() => setOpen(false)}
             >
               Hủy
             </Button>
 
-            <Button type="submit">
+            <Button type="submit" disabled={isSaving}>
               Gửi báo cáo
             </Button>
           </DialogFooter>
