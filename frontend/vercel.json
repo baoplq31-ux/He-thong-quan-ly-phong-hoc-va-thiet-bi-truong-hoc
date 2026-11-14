@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://REPLACE_WITH_RENDER_BACKEND.onrender.com/api/:path*"
+      "destination": "https://he-thong-quan-ly-phong-hoc-va-thiet-bi.onrender.com/api/:path*"
     }
   ]
 }
