@@ -11,7 +11,6 @@
 ---
 
 ### Báo cáo tiến độ dự án
-## 📌 Tiến độ dự án (19/9/2026)
 
 ### 🔐 1. Phân hệ Hệ thống & Quản trị
 * **Đăng nhập & Điều hướng:** Tự động nhận diện vai trò và hiển thị bảng điều khiển (Dashboard) tương ứng với từng quyền hạn.
@@ -51,10 +50,6 @@
 * **Kiểm soát trạng thái tài sản chặt chẽ:** Thêm luồng kiểm tra thiết bị khi trả (Bàn giao ➔ Thu hồi ➔ Đánh giá hư hỏng ➔ Tự động cập nhật trạng thái kho).
 
 
-## 📌 Tiến độ dự án (3/10/2026)
-
-
-Trò chuyện với Gemini
 đặc tả SRS là gì ví dụ mô tả dễ hiểu
 
 SRS (Software Requirements Specification) hay còn gọi là Tài liệu đặc tả yêu cầu phần mềm, là một bản mô tả chi tiết về việc hệ thống phần mềm cần phải làm gì, hoạt động ra sao và đáp ứng những tiêu chí nào.
@@ -606,23 +601,7 @@ Màn hình Đăng nhập: Thiết kế giao diện tối giản, tập trung và
 
 Thành phần chính: Ô nhập tài khoản, ô nhập mật khẩu (ẩn ký tự), hộp chọn vai trò (Dropdown Role) và nút xác nhận đăng nhập.
 
-cho nội dung này để tôi up lên github
 
-Tài liệu đặc tả gọn gàng để bạn đưa lên GitHub đã được tạo sẵn dưới dạng file Markdown:
-
-Tệp tài liệu đặc tả hệ thống của bạn đã sẵn sàng
-
-Biểu tượng MD
-SRS_Login_PhanQuyen
- MD 
-Bạn có thể tải tệp SRS_Login_PhanQuyen.md này về và đẩy trực tiếp lên kho lưu trữ (repository) GitHub của nhóm!
-
-
-
-
-Gemini là một AI và có thể mắc sai sót.
-
-Đang phân tích
 # ĐẶC TẢ TÍNH NĂNG: XÁC THỰC VÀ PHÂN QUYỀN
 
 ## 1. Phân quyền người dùng (Role-Based Access Control)
