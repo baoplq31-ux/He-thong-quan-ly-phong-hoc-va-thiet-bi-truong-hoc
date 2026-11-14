@@ -13,10 +13,18 @@ import {
 import { toast } from "sonner";
 
 import { LoginView } from "@/components/auth/login-view";
+import { AuditLogsView } from "@/components/audit-logs/audit-logs-view";
 import { BookingsView } from "@/components/bookings/bookings-view";
 import { DashboardOverview } from "@/components/dashboard/dashboard-overview";
 import { EquipmentView } from "@/components/equipment/equipment-view";
 import { IncidentsView } from "@/components/incidents/incidents-view";
+import { MaintenanceView } from "@/components/maintenance/maintenance-view";
+import type { MaintenanceRecord } from "@/components/maintenance/types";
+import BorrowingsView from "@/components/borrowings/borrowings-view";
+import type {
+  BorrowingRequest,
+  EquipmentBorrowing,
+} from "@/components/borrowings/types";
 import { AppHeader } from "@/components/layout/app-header";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { ReportsView } from "@/components/reports/reports-view";
@@ -55,6 +63,16 @@ type DataResponse = {
   message?: string;
 };
 
+type LoadedData = {
+  rooms: Room[];
+  equipment: Equipment[];
+  bookings: Booking[];
+  incidents: Incident[];
+  users: SystemUser[];
+  borrowings: EquipmentBorrowing[];
+  maintenance: MaintenanceRecord[];
+};
+
 type LoginResponse = {
   user?: SystemUser;
   message?: string;
@@ -65,39 +83,35 @@ type ApiMessage = {
 };
 
 export function AppShell() {
-  const [isCheckingSession, setIsCheckingSession] =
-    useState(true);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
 
-  const [activeView, setActiveView] =
-    useState<View>("dashboard");
+  const [activeView, setActiveView] = useState<View>("dashboard");
 
   const [search, setSearch] = useState("");
 
-  const [currentUser, setCurrentUser] =
-    useState<SystemUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<SystemUser | null>(null);
 
-  const [roomList, setRoomList] =
-    useState<Room[]>([]);
+  const [roomList, setRoomList] = useState<Room[]>([]);
 
-  const [equipmentList, setEquipmentList] =
-    useState<Equipment[]>([]);
+  const [equipmentList, setEquipmentList] = useState<Equipment[]>([]);
 
-  const [bookingList, setBookingList] =
-    useState<Booking[]>([]);
+  const [bookingList, setBookingList] = useState<Booking[]>([]);
 
-  const [incidentList, setIncidentList] =
-    useState<Incident[]>([]);
+  const [incidentList, setIncidentList] = useState<Incident[]>([]);
 
-  const [userList, setUserList] =
-    useState<SystemUser[]>([]);
+  const [userList, setUserList] = useState<SystemUser[]>([]);
+  const [maintenanceList, setMaintenanceList] =
+    useState<MaintenanceRecord[]>([]);
 
-  const [isLoadingData, setIsLoadingData] =
-    useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(false);
 
-  const [loadError, setLoadError] =
-    useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const sessionVersion = useRef(0);
+
+  const [borrowingList, setBorrowingList] = useState<EquipmentBorrowing[]>([]);
 
   function clearClientState() {
     sessionVersion.current += 1;
@@ -111,44 +125,94 @@ export function AppShell() {
     setBookingList([]);
     setIncidentList([]);
     setUserList([]);
+    setMaintenanceList([]);
+    setBorrowingList([]);
   }
+
+  const fetchData = useCallback(async (): Promise<LoadedData> => {
+    const response = await fetch("/api/data", {
+      method: "GET",
+      cache: "no-store",
+      credentials: "include",
+    });
+    const result = (await response.json()) as DataResponse;
+
+    if (!response.ok) {
+      throw new Error(result.message ?? "Không thể tải dữ liệu");
+    }
+
+    const borrowingResponse = await fetch("/api/borrowings", {
+      method: "GET",
+      cache: "no-store",
+      credentials: "include",
+    });
+    const borrowingResult = (await borrowingResponse.json()) as {
+      data?: EquipmentBorrowing[];
+      message?: string;
+    };
+
+    if (!borrowingResponse.ok) {
+      throw new Error(
+        borrowingResult.message ??
+          "Không thể tải dữ liệu mượn thiết bị",
+      );
+    }
+
+    const maintenanceResponse = await fetch("/api/maintenance", {
+      method: "GET",
+      cache: "no-store",
+      credentials: "include",
+    });
+    let maintenanceData: MaintenanceRecord[] = [];
+
+    if (maintenanceResponse.ok) {
+      const maintenanceResult = (await maintenanceResponse.json()) as {
+        data?: MaintenanceRecord[];
+      };
+      maintenanceData = maintenanceResult.data ?? [];
+    } else if (maintenanceResponse.status !== 403) {
+      const maintenanceResult = (await maintenanceResponse.json()) as {
+        message?: string;
+      };
+      throw new Error(
+        maintenanceResult.message ??
+          "Không thể tải dữ liệu bảo trì thiết bị",
+      );
+    }
+
+    return {
+      rooms: result.rooms,
+      equipment: result.equipment,
+      bookings: result.bookings,
+      incidents: result.incidents,
+      users: result.users,
+      borrowings: borrowingResult.data ?? [],
+      maintenance: maintenanceData,
+    };
+  }, []);
 
   const loadData = useCallback(
     async (showFullScreen = true) => {
       const version = sessionVersion.current;
-
       if (showFullScreen) {
         setIsLoadingData(true);
         setLoadError(null);
       }
 
       try {
-        const response = await fetch("/api/data", {
-          method: "GET",
-          cache: "no-store",
-          credentials: "include",
-        });
-
-        const result =
-          (await response.json()) as DataResponse;
-
+        const data = await fetchData();
         if (version !== sessionVersion.current) {
           return false;
         }
 
-        if (!response.ok) {
-          throw new Error(
-            result.message ?? "Không thể tải dữ liệu",
-          );
-        }
-
-        setRoomList(result.rooms);
-        setEquipmentList(result.equipment);
-        setBookingList(result.bookings);
-        setIncidentList(result.incidents);
-        setUserList(result.users);
+        setRoomList(data.rooms);
+        setEquipmentList(data.equipment);
+        setBookingList(data.bookings);
+        setIncidentList(data.incidents);
+        setUserList(data.users);
+        setBorrowingList(data.borrowings);
+        setMaintenanceList(data.maintenance);
         setLoadError(null);
-
         return true;
       } catch (error) {
         if (version !== sessionVersion.current) {
@@ -164,7 +228,6 @@ export function AppShell() {
           setLoadError(message);
           toast.error(message);
         }
-
         return false;
       } finally {
         if (
@@ -175,7 +238,7 @@ export function AppShell() {
         }
       }
     },
-    [],
+    [fetchData],
   );
 
   async function sendMutation(
@@ -229,15 +292,154 @@ export function AppShell() {
     }
   }
 
+  const createBorrowing = (request: BorrowingRequest) =>
+    sendMutation("/api/borrowings", {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
+
+  const updateBorrowing = (id: number, request: BorrowingRequest) =>
+    sendMutation(`/api/borrowings/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        action: "edit",
+        ...request,
+      }),
+    });
+
+  const deleteBorrowing = (id: number) =>
+    sendMutation(`/api/borrowings/${id}`, {
+      method: "DELETE",
+    });
+
+  const approveBorrowing = (id: number) =>
+    sendMutation(`/api/borrowings/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "Đã duyệt" }),
+    });
+
+  const rejectBorrowing = (id: number) =>
+    sendMutation(`/api/borrowings/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "Từ chối" }),
+    });
+
+  const startBorrowing = (id: number) =>
+    sendMutation(`/api/borrowings/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "Đang mượn" }),
+    });
+
+  const returnBorrowing = (
+    id: number,
+    conditionAfter: string,
+    returnNote: string,
+  ) =>
+    sendMutation(`/api/borrowings/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        status: "Đã trả",
+        conditionAfter,
+        returnNote,
+      }),
+    });
+
+  const createMaintenance = (request: {
+    equipmentId: number;
+    quantity: number;
+    type: string;
+    issueDescription: string;
+    startDate: string;
+    content: string;
+    assignedTo: string;
+  }) =>
+    sendMutation("/api/maintenance", {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
+
+  const completeMaintenance = (
+    id: number,
+    result: {
+      repairResult: string;
+      conditionAfter: string;
+      cost: number | null;
+    },
+  ) =>
+    sendMutation(`/api/maintenance/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(result),
+    });
+
+  async function handleRefreshData() {
+    if (isRefreshing) return;
+
+    setIsRefreshing(true);
+
+    try {
+      const refreshed = await loadData(false);
+
+      if (refreshed) {
+        toast.success("Đã cập nhật dữ liệu mới nhất");
+      } else {
+        toast.error("Không thể cập nhật dữ liệu");
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
+  }
+
+  function handleRetryData() {
+    void loadData(true);
+  }
+
   useEffect(() => {
-    if (currentUser) {
-      void loadData();
+    if (!currentUser) {
+      return;
     }
 
+    let cancelled = false;
+    const version = sessionVersion.current;
+
+    async function loadInitialData() {
+      try {
+        const data = await fetchData();
+        if (cancelled || version !== sessionVersion.current) {
+          return;
+        }
+
+        setRoomList(data.rooms);
+        setEquipmentList(data.equipment);
+        setBookingList(data.bookings);
+        setIncidentList(data.incidents);
+        setUserList(data.users);
+        setBorrowingList(data.borrowings);
+        setMaintenanceList(data.maintenance);
+        setLoadError(null);
+      } catch (error) {
+        if (cancelled || version !== sessionVersion.current) {
+          return;
+        }
+
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Không thể kết nối tới máy chủ";
+        setLoadError(message);
+        toast.error(message);
+      } finally {
+        if (!cancelled && version === sessionVersion.current) {
+          setIsLoadingData(false);
+        }
+      }
+    }
+
+    void loadInitialData();
     return () => {
+      cancelled = true;
       sessionVersion.current += 1;
     };
-  }, [currentUser, loadData]);
+  }, [currentUser, fetchData]);
 
   async function handleLogin(
     loginName: string,
@@ -387,15 +589,15 @@ export function AppShell() {
   });
 };
 
-const handleDeleteEquipment = async (id: number) => {
-  return sendMutation("/api/equipment", {
-    method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ id }),
-  });
-};
+  const handleDeleteEquipment = async (id: number) => {
+    return sendMutation("/api/equipment", {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ id }),
+    });
+  };
 
   const handleUpdateRoom = async (
     room: Room,
@@ -442,10 +644,18 @@ const handleDeleteEquipment = async (id: number) => {
   async function handleUpdateBookingStatus(
     id: number,
     status: BookingStatus,
+    rejectionReason?: string,
   ): Promise<boolean> {
     return sendMutation("/api/bookings", {
       method: "PATCH",
-      body: JSON.stringify({ id, status }),
+      body: JSON.stringify({ id, status, rejectionReason }),
+    });
+  }
+
+  async function handleCancelBooking(id: number): Promise<boolean> {
+    return sendMutation("/api/bookings", {
+      method: "PATCH",
+      body: JSON.stringify({ id, action: "cancel" }),
     });
   }
 
@@ -529,6 +739,42 @@ async function handleDeleteIncident(
     });
   }
 
+  async function handleUpdateUser(
+  user: SystemUser,
+): Promise<boolean> {
+  return sendMutation("/api/users", {
+    method: "PATCH",
+    body: JSON.stringify({
+      id: user.id,
+      code: user.code,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      department: user.department,
+    }),
+  });
+}
+
+async function handleDeleteUser(
+  id: SystemUser["id"],
+): Promise<boolean> {
+  return sendMutation("/api/users", {
+    method: "DELETE",
+    body: JSON.stringify({ id }),
+  });
+}
+
+  async function handleResetPassword(
+    userId: number,
+    newPassword: string,
+    confirmPassword: string,
+  ): Promise<boolean> {
+    return sendMutation("/api/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ userId, newPassword, confirmPassword }),
+    });
+  }
+
   const canManage =
     currentUser !== null &&
     canManageFacilities(currentUser.role);
@@ -586,12 +832,34 @@ async function handleDeleteIncident(
             rooms={roomList}
             search={search}
             canApprove={canApprove}
+            currentUserId={currentUser?.id ?? 0}
+            requesterName={currentUser?.name ?? ""}
+            onCancelBooking={handleCancelBooking}
             onAddBooking={handleAddBooking}
             onUpdateStatus={handleUpdateBookingStatus}
             onUpdateBooking={handleUpdateBooking}
             onDeleteBooking={handleDeleteBooking}
           />
         );
+
+        case "borrowings":
+          return (
+            <BorrowingsView
+              borrowings={borrowingList}
+              equipment={equipmentList}
+              currentUserId={currentUser?.id ?? 0}
+              onRefresh={() => void loadData(false)}
+              onCreateBorrowing={createBorrowing}
+              onUpdateBorrowing={updateBorrowing}
+              onDeleteBorrowing={deleteBorrowing}
+              onApprove={approveBorrowing}
+              onReject={rejectBorrowing}
+              onStartBorrowing={startBorrowing}
+              onReturn={returnBorrowing}
+              canApprove={canApprove}
+              canProcess={canProcess}
+            />
+          );
 
       case "incidents":
         return (
@@ -626,11 +894,25 @@ async function handleDeleteIncident(
               currentUser?.id ?? 0
             }
             onAddUser={handleAddUser}
-            onUpdateStatus={
-              handleUpdateUserStatus
-            }
+            onUpdateUser={handleUpdateUser}
+            onUpdateStatus={handleUpdateUserStatus}
+            onDeleteUser={handleDeleteUser}
+            onResetPassword={handleResetPassword}
           />
         );
+
+      case "maintenance":
+        return (
+          <MaintenanceView
+            equipment={equipmentList}
+            records={maintenanceList}
+            onCreate={createMaintenance}
+            onComplete={completeMaintenance}
+          />
+        );
+
+      case "audit-logs":
+        return <AuditLogsView />;
 
       default:
         return null;
@@ -695,7 +977,7 @@ async function handleDeleteIncident(
             <div className="mt-6 flex justify-center gap-3">
               <Button
                 className="gap-2"
-                onClick={() => void loadData(true)}
+                onClick={handleRetryData}
               >
                 <RefreshCw className="size-4" />
                 Thử lại
@@ -733,6 +1015,9 @@ async function handleDeleteIncident(
           activeView={activeView}
           search={search}
           onSearchChange={setSearch}
+          onRefresh={() => void handleRefreshData()}
+          isRefreshing={isRefreshing}
+          onViewChange={handleViewChange}
         />
 
         <main className="flex-1 bg-slate-50 p-4 md:p-6">

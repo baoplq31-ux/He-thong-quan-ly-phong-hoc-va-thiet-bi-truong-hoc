@@ -16,6 +16,7 @@ import { BookingEditDialog } from "./booking-edit-dialog";
 import { BookingFormDialog } from "./booking-form-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -52,8 +53,12 @@ type BookingsViewProps = {
   onUpdateStatus: (
     id: number,
     status: BookingStatus,
+    rejectionReason?: string,
   ) => Promise<boolean>;
   canApprove: boolean;
+  currentUserId: number;
+  requesterName: string;
+  onCancelBooking: (id: number) => Promise<boolean>;
   onUpdateBooking: (
   booking: Booking,
 ) => Promise<boolean>;
@@ -76,6 +81,12 @@ function getStatusClass(status: BookingStatus) {
     case "Từ chối":
       return "border-rose-200 bg-rose-50 text-rose-700";
 
+    case "Đã hủy":
+      return "border-slate-200 bg-slate-50 text-slate-600";
+
+    case "Đã hoàn thành":
+      return "border-blue-200 bg-blue-50 text-blue-700";
+
     default:
       return "";
   }
@@ -88,6 +99,9 @@ export function BookingsView({
   onAddBooking,
   onUpdateStatus,
   canApprove,
+  currentUserId,
+  requesterName,
+  onCancelBooking,
   onUpdateBooking,
   onDeleteBooking,
 }: BookingsViewProps) {
@@ -102,6 +116,12 @@ export function BookingsView({
 
   const [deletingId, setDeletingId] =
     useState<Booking["id"] | null>(null);
+  const [calendarMode, setCalendarMode] =
+    useState<"day" | "week" | "month">("week");
+  const [calendarDate, setCalendarDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  });
 
   async function handleChangeStatus(
     id: number,
@@ -111,10 +131,19 @@ export function BookingsView({
       return;
     }
 
+    let rejectionReason: string | undefined;
+    if (status === "Từ chối") {
+      rejectionReason = window.prompt("Nhập lý do từ chối yêu cầu:")?.trim();
+      if (!rejectionReason) {
+        toast.error("Cần nhập lý do từ chối.");
+        return;
+      }
+    }
+
     setIsUpdating(true);
 
     try {
-      const saved = await onUpdateStatus(id, status);
+      const saved = await onUpdateStatus(id, status, rejectionReason);
 
       if (saved) {
         toast.success(
@@ -138,6 +167,70 @@ export function BookingsView({
       setIsUpdating(false);
     }
   }
+
+  async function handleCancelBooking(booking: Booking) {
+    if (
+      booking.userId !== currentUserId ||
+      (booking.status !== "Chờ duyệt" && booking.status !== "Đã duyệt")
+    ) {
+      return;
+    }
+    if (
+      !window.confirm(
+        `Bạn có chắc muốn hủy yêu cầu đặt phòng ${booking.room} ngày ${booking.date}?`,
+      )
+    ) {
+      return;
+    }
+
+    setDeletingId(booking.id);
+    try {
+      if (await onCancelBooking(booking.id)) {
+        toast.success("Đã hủy yêu cầu đặt phòng.");
+      }
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  const calendarDays = useMemo(() => {
+    const [year, month, day] = calendarDate.split("-").map(Number);
+    const selected = new Date(year, month - 1, day);
+    if (calendarMode === "day") {
+      return [selected];
+    }
+
+    const first = new Date(selected);
+    if (calendarMode === "week") {
+      const weekday = (first.getDay() + 6) % 7;
+      first.setDate(first.getDate() - weekday);
+    } else {
+      first.setDate(1);
+      first.setDate(first.getDate() - ((first.getDay() + 6) % 7));
+    }
+
+    const count = calendarMode === "week" ? 7 : 42;
+    return Array.from({ length: count }, (_, index) => {
+      const date = new Date(first);
+      date.setDate(first.getDate() + index);
+      return date;
+    });
+  }, [calendarDate, calendarMode]);
+
+  const bookingsByDate = useMemo(() => {
+    const result = new Map<string, Booking[]>();
+    for (const booking of bookings) {
+      const [day, month, year] = booking.date.split("/").map(Number);
+      if (!day || !month || !year) {
+        continue;
+      }
+      const key = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const list = result.get(key) ?? [];
+      list.push(booking);
+      result.set(key, list);
+    }
+    return result;
+  }, [bookings]);
 
   async function handleDeleteBooking(
   booking: Booking,
@@ -208,6 +301,9 @@ export function BookingsView({
     (booking) =>
       booking.status === "Từ chối",
   ).length;
+  const cancelled = bookings.filter(
+    (booking) => booking.status === "Đã hủy",
+  ).length;
 
   const summaries = [
     {
@@ -234,6 +330,12 @@ export function BookingsView({
       icon: CircleX,
       color: "bg-rose-50 text-rose-700",
     },
+    {
+      title: "Đã hủy",
+      value: cancelled,
+      icon: CircleX,
+      color: "bg-slate-50 text-slate-700",
+    },
   ];
 
   return (
@@ -252,14 +354,13 @@ export function BookingsView({
         </div>
 
         <BookingFormDialog
-          bookings={bookings}
-          rooms={rooms}
+          requesterName={requesterName}
           onAddBooking={onAddBooking}
         />
       </div>
 
       {/* Summary */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {summaries.map((item) => {
           const Icon = item.icon;
 
@@ -286,6 +387,85 @@ export function BookingsView({
           );
         })}
       </div>
+
+      <Card>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle>Lịch phòng</CardTitle>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              aria-label="Ngày lịch"
+              type="date"
+              className="w-auto"
+              value={calendarDate}
+              onChange={(event) => setCalendarDate(event.target.value)}
+            />
+            <div className="flex rounded-lg border p-1">
+              {(["day", "week", "month"] as const).map((mode) => (
+                <Button
+                  key={mode}
+                  type="button"
+                  size="sm"
+                  variant={calendarMode === mode ? "default" : "ghost"}
+                  onClick={() => setCalendarMode(mode)}
+                >
+                  {mode === "day"
+                    ? "Ngày"
+                    : mode === "week"
+                      ? "Tuần"
+                      : "Tháng"}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div
+            className={`grid gap-2 ${
+              calendarMode === "day"
+                ? "grid-cols-1"
+                : "grid-cols-2 md:grid-cols-7"
+            }`}
+          >
+            {calendarDays.map((date) => {
+              const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+              const dayBookings = bookingsByDate.get(key) ?? [];
+              const isSelectedMonth =
+                date.getMonth() === Number(calendarDate.split("-")[1]) - 1;
+
+              return (
+                <div
+                  key={key}
+                  className={`min-h-28 rounded-lg border p-2 ${
+                    isSelectedMonth ? "bg-white" : "bg-slate-50 text-slate-400"
+                  }`}
+                >
+                  <p className="mb-2 text-xs font-semibold">
+                    {date.toLocaleDateString("vi-VN", {
+                      weekday: "short",
+                      day: "numeric",
+                      month: "numeric",
+                    })}
+                  </p>
+                  <div className="space-y-1">
+                    {dayBookings.map((booking) => (
+                      <div
+                        key={booking.id}
+                        className="rounded bg-blue-50 px-2 py-1 text-[11px] leading-4 text-blue-900"
+                        title={`${booking.course} · ${booking.status}`}
+                      >
+                        <p className="font-semibold">
+                          {booking.time} · {booking.room}
+                        </p>
+                        <p className="truncate">{booking.course}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Booking table */}
       <Card>
@@ -322,6 +502,8 @@ export function BookingsView({
               <SelectItem value="Từ chối">
                 Từ chối
               </SelectItem>
+              <SelectItem value="Đã hủy">Đã hủy</SelectItem>
+              <SelectItem value="Đã hoàn thành">Đã hoàn thành</SelectItem>
             </SelectContent>
           </Select>
         </CardHeader>
@@ -381,7 +563,16 @@ export function BookingsView({
 
                       {/* Course */}
                       <TableCell>
-                        {booking.course}
+                        <p>{booking.course}</p>
+                        <p className="text-xs text-slate-500">
+                          {booking.attendeeCount ?? 1} người
+                          {booking.note ? ` · ${booking.note}` : ""}
+                        </p>
+                        {booking.rejectionReason && (
+                          <p className="text-xs text-rose-600">
+                            Lý do: {booking.rejectionReason}
+                          </p>
+                        )}
                       </TableCell>
 
                       {/* Person */}
@@ -402,77 +593,108 @@ export function BookingsView({
                       </TableCell>
 
                       {/* Actions */}
-<TableCell>
-  <div className="flex items-center gap-2">
-    {booking.status === "Chờ duyệt" && canApprove && (
-      <>
-        <Button
-          size="sm"
-          disabled={isUpdating}
-          onClick={() =>
-            handleChangeStatus(
-              booking.id,
-              "Đã duyệt",
-            )
-          }
-        >
-          Duyệt
-        </Button>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {booking.status === "Chờ duyệt" && canApprove && (
+                          <>
+                            <Button
+                              size="sm"
+                              disabled={isUpdating}
+                              onClick={() =>
+                                handleChangeStatus(
+                                  booking.id,
+                                  "Đã duyệt",
+                                )
+                              }
+                            >
+                              Duyệt
+                            </Button>
 
-        <Button
-          size="sm"
-          variant="outline"
-          className="text-rose-600"
-          disabled={isUpdating}
-          onClick={() =>
-            handleChangeStatus(
-              booking.id,
-              "Từ chối",
-            )
-          }
-        >
-          Từ chối
-        </Button>
-      </>
-    )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-rose-600"
+                              disabled={isUpdating}
+                              onClick={() =>
+                                handleChangeStatus(
+                                  booking.id,
+                                  "Từ chối",
+                                )
+                              }
+                            >
+                              Từ chối
+                            </Button>
+                          </>
+                        )}
 
-    {canApprove && (
-      <>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          title="Sửa lịch"
-          disabled={deletingId !== null}
-          onClick={() => {
-            console.log(
-              "CLICK SỬA:",
-              booking,
-            );
+                        {booking.status === "Đã duyệt" && canApprove && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={isUpdating}
+                            onClick={() =>
+                              void handleChangeStatus(
+                                booking.id,
+                                "Đã hoàn thành",
+                              )
+                            }
+                          >
+                            Hoàn thành
+                          </Button>
+                        )}
 
-            setEditingBooking(booking);
-          }}
-        >
-          <Pencil className="size-4" />
-        </Button>
+                        {booking.userId === currentUserId &&
+                          (booking.status === "Chờ duyệt" ||
+                            booking.status === "Đã duyệt") && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={deletingId === booking.id}
+                              onClick={() =>
+                                void handleCancelBooking(booking)
+                              }
+                            >
+                              Hủy yêu cầu
+                            </Button>
+                          )}
 
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="text-red-600 hover:text-red-700"
-          title="Xóa lịch"
-          disabled={deletingId !== null}
-          onClick={() =>
-            void handleDeleteBooking(booking)
-          }
-        >
-          <Trash2 className="size-4" />
-        </Button>
-      </>
-    )}
-  </div>
-</TableCell>
+                        {canApprove && (
+                          <>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              title="Sửa lịch"
+                              disabled={deletingId !== null}
+                              onClick={() => {
+                                console.log(
+                                  "CLICK SỬA:",
+                                  booking,
+                                );
+
+                                setEditingBooking(booking);
+                              }}
+                            >
+                              <Pencil className="size-4" />
+                            </Button>
+
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="text-red-600 hover:text-red-700"
+                              title="Xóa lịch"
+                              disabled={deletingId !== null}
+                              onClick={() =>
+                                void handleDeleteBooking(booking)
+                              }
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
                     </TableRow>
                   ),
                 )}
@@ -502,10 +724,12 @@ export function BookingsView({
         </CardContent>
       </Card>
     </div>
-  <BookingEditDialog
+  {editingBooking && (
+    <BookingEditDialog
+      key={editingBooking.id}
       booking={editingBooking}
       rooms={rooms}
-      open={editingBooking !== null}
+      open
       onOpenChange={(open) => {
         if (!open) {
           setEditingBooking(null);
@@ -513,6 +737,7 @@ export function BookingsView({
       }}
       onSave={onUpdateBooking}
     />
+  )}
   </>
 );
 }

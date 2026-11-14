@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,10 @@ type RoomEditDialogProps = {
   onSave: (room: Room) => Promise<boolean>;
 };
 
+type RoomEditFormProps = Omit<RoomEditDialogProps, "room"> & {
+  room: Room;
+};
+
 type RoomFormState = {
   code: string;
   name: string;
@@ -34,31 +38,33 @@ type RoomFormState = {
   status: Room["status"];
 };
 
-const EMPTY_FORM: RoomFormState = {
-  code: "",
-  name: "",
-  building: "",
-  floor: "",
-  type: "",
-  capacity: 1,
-  status: "Đang trống",
-};
-
 export function RoomEditDialog({
+  room,
+  open,
+  ...props
+}: RoomEditDialogProps) {
+  if (!open || !room) {
+    return null;
+  }
+
+  return (
+    <RoomEditForm
+      key={room.id}
+      room={room}
+      open={open}
+      {...props}
+    />
+  );
+}
+
+function RoomEditForm({
   room,
   open,
   onOpenChange,
   onSave,
-}: RoomEditDialogProps) {
-  const [form, setForm] = useState<RoomFormState>(EMPTY_FORM);
-  const [isSaving, setIsSaving] = useState(false);
-
-  useEffect(() => {
-    if (!room) {
-      return;
-    }
-
-    setForm({
+}: RoomEditFormProps) {
+  const [form, setForm] = useState<RoomFormState>(() =>
+    ({
       code: room.code,
       name: room.name,
       building: room.building,
@@ -66,8 +72,9 @@ export function RoomEditDialog({
       type: room.type,
       capacity: room.capacity,
       status: room.status,
-    });
-  }, [room]);
+    }),
+  );
+  const [isSaving, setIsSaving] = useState(false);
 
   const updateField = <K extends keyof RoomFormState>(
     field: K,
@@ -248,6 +255,8 @@ export function RoomEditDialog({
                 <option value="Đang trống">Đang trống</option>
                 <option value="Đang sử dụng">Đang sử dụng</option>
                 <option value="Bảo trì">Bảo trì</option>
+                <option value="Tạm khóa">Tạm khóa</option>
+                <option value="Ngừng sử dụng">Ngừng sử dụng</option>
               </select>
             </div>
           </div>

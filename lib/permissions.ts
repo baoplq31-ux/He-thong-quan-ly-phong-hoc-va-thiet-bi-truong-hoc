@@ -12,9 +12,12 @@ export const viewPermissions: Record<
     "rooms",
     "equipment",
     "bookings",
+    "borrowings",
     "incidents",
     "reports",
     "users",
+    "maintenance",
+    "audit-logs",
   ],
 
   "Cán bộ thiết bị": [
@@ -22,14 +25,17 @@ export const viewPermissions: Record<
     "rooms",
     "equipment",
     "bookings",
+    "borrowings",
     "incidents",
     "reports",
+    "maintenance",
   ],
 
   "Giảng viên": [
     "dashboard",
     "rooms",
     "bookings",
+    "borrowings",
     "incidents",
   ],
 
@@ -37,6 +43,7 @@ export const viewPermissions: Record<
     "dashboard",
     "rooms",
     "bookings",
+    "borrowings",
     "incidents",
   ],
 };

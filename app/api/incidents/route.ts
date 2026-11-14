@@ -3,6 +3,8 @@ import {
   requireApiUser,
 } from "@/lib/api-auth";
 
+import { notifyNewIncident } from "@/lib/notifications";
+import { recordAuditSafely } from "@/lib/audit";
 import {
   ApiError,
   apiError,
@@ -47,10 +49,7 @@ export async function POST(request: Request) {
       "Phòng xảy ra sự cố",
     ).toUpperCase();
 
-    const reportedBy = requiredText(
-      body.reportedBy,
-      "Người báo sự cố",
-    );
+    const reportedBy = auth.user.name;
 
     const severity = requiredText(
       body.severity,
@@ -85,53 +84,57 @@ export async function POST(request: Request) {
       timeZone: "Asia/Ho_Chi_Minh",
     }).format(new Date());
 
-    await prisma.incident.create({
-      data: {
-        title,
-        roomId: room.id,
-        reportedBy,
-        time,
-        severity,
-        status: "Mới báo",
-      },
-    });
+    const incident = await prisma.incident.create({
+    data: {
+      title,
+      roomId: room.id,
+      reportedBy,
+      reportedById: auth.user.id,
+      time,
+      severity,
+      status: "Mới báo",
+    },
+  });
 
-    return Response.json(
-      {
-        message: "Đã ghi nhận sự cố.",
-      },
-      {
-        status: 201,
-      },
+  await recordAuditSafely({
+    userId: auth.user.id,
+    action: "Tạo báo cáo sự cố",
+    module: "incident",
+    objectId: incident.id,
+    newValue: {
+      title: incident.title,
+      room: room.code,
+      severity: incident.severity,
+      status: incident.status,
+    },
+  });
+
+  try {
+    await notifyNewIncident(
+      incident.id,
+      incident.title,
+      room.code,
+      incident.severity,
     );
+  } catch (notificationError) {
+    console.error(
+      "Không thể tạo thông báo sự cố:",
+      notificationError,
+    );
+  }
+
+  return Response.json(
+    {
+      message: "Đã ghi nhận sự cố.",
+    },
+    {
+      status: 201,
+    },
+  );
   } catch (error) {
     return apiError(error);
   }
 }
-
-/*
-|--------------------------------------------------------------------------
-| PATCH
-|--------------------------------------------------------------------------
-| Có 2 trường hợp:
-|
-| 1. Chỉ gửi:
-|    { id, status }
-|
-|    => cập nhật trạng thái
-|
-| 2. Gửi:
-|    {
-|      id,
-|      title,
-|      location,
-|      reportedBy,
-|      severity
-|    }
-|
-|    => sửa thông tin sự cố
-|--------------------------------------------------------------------------
-*/
 
 export async function PATCH(request: Request) {
   try {
@@ -172,13 +175,29 @@ export async function PATCH(request: Request) {
         );
       }
 
-      await prisma.incident.update({
+      const current = await prisma.incident.findUnique({
+        where: { id },
+      });
+      if (!current) {
+        throw new ApiError("Không tìm thấy sự cố.", 404);
+      }
+
+      const updated = await prisma.incident.update({
         where: {
           id,
         },
         data: {
           status,
         },
+      });
+
+      await recordAuditSafely({
+        userId: auth.user.id,
+        action: "Cập nhật trạng thái sự cố",
+        module: "incident",
+        objectId: id,
+        oldValue: { status: current.status },
+        newValue: { status: updated.status },
       });
 
       return Response.json({
@@ -232,7 +251,14 @@ export async function PATCH(request: Request) {
       );
     }
 
-    await prisma.incident.update({
+    const current = await prisma.incident.findUnique({
+      where: { id },
+    });
+    if (!current) {
+      throw new ApiError("Không tìm thấy sự cố.", 404);
+    }
+
+    const updated = await prisma.incident.update({
       where: {
         id,
       },
@@ -241,6 +267,23 @@ export async function PATCH(request: Request) {
         roomId: room.id,
         reportedBy,
         severity,
+      },
+    });
+
+    await recordAuditSafely({
+      userId: auth.user.id,
+      action: "Cập nhật sự cố",
+      module: "incident",
+      objectId: id,
+      oldValue: {
+        title: current.title,
+        roomId: current.roomId,
+        severity: current.severity,
+      },
+      newValue: {
+        title: updated.title,
+        roomId: updated.roomId,
+        severity: updated.severity,
       },
     });
 
@@ -272,9 +315,28 @@ export async function DELETE(request: Request) {
 
     const id = positiveId(body.id);
 
+    const incident = await prisma.incident.findUnique({
+      where: { id },
+    });
+    if (!incident) {
+      throw new ApiError("Không tìm thấy sự cố.", 404);
+    }
+
     await prisma.incident.delete({
       where: {
         id,
+      },
+    });
+
+    await recordAuditSafely({
+      userId: auth.user.id,
+      action: "Xóa sự cố",
+      module: "incident",
+      objectId: id,
+      oldValue: {
+        title: incident.title,
+        reportedBy: incident.reportedBy,
+        status: incident.status,
       },
     });
 

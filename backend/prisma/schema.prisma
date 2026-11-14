@@ -1,0 +1,256 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Room {
+  id             Int      @id @default(autoincrement())
+  code           String   @unique
+  name           String
+  building       String
+  floor          String
+  type           String
+  capacity       Int
+  status         String
+  equipmentCount Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  equipments Equipment[]
+  bookings   Booking[]
+  incidents  Incident[]
+
+  @@map("rooms")
+}
+
+model Equipment {
+  id                Int      @id @default(autoincrement())
+  code              String   @unique
+  name              String
+  type              String
+  quantity          Int
+  availableQuantity Int      @default(0)
+  status            String
+  lastChecked       String
+  roomId            Int
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Restrict)
+
+  borrowings EquipmentBorrowing[]
+  maintenances Maintenance[]
+
+  @@index([roomId])
+  @@map("equipment")
+}
+
+model Booking {
+  id              Int      @id @default(autoincrement())
+  date            String
+  time            String
+  course          String
+  person          String
+  attendeeCount   Int      @default(1)
+  note            String?
+  status          String
+  rejectionReason String?
+  userId          Int?
+  approvedById    Int?
+  approvedAt      DateTime?
+  cancelledAt     DateTime?
+  completedAt     DateTime?
+  roomId          Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  user SystemUser? @relation("BookingRequester", fields: [userId], references: [id], onDelete: SetNull)
+  approvedBy SystemUser? @relation("BookingApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([roomId])
+  @@index([date])
+  @@index([userId])
+  @@index([approvedById])
+  @@index([status, date])
+  @@map("bookings")
+}
+
+model Incident {
+  id         Int      @id @default(autoincrement())
+  title      String
+  reportedBy String
+  reportedById Int?
+  time       String
+  severity   String
+  status     String
+  roomId     Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  reporter SystemUser? @relation("IncidentReporter", fields: [reportedById], references: [id], onDelete: SetNull)
+
+  @@index([roomId])
+  @@index([reportedById])
+  @@index([status])
+  @@map("incidents")
+}
+
+model SystemUser {
+  sessions      Session[]
+  notifications Notification[]
+  bookings      Booking[] @relation("BookingRequester")
+  approvedBookings Booking[] @relation("BookingApprover")
+  reportedIncidents Incident[] @relation("IncidentReporter")
+  auditLogs     AuditLog[]
+  createdMaintenances Maintenance[]
+
+  equipmentBorrowings EquipmentBorrowing[] @relation("EquipmentBorrowingBorrower")
+
+  approvedEquipmentBorrowings EquipmentBorrowing[] @relation("EquipmentBorrowingApprover")
+
+  returnedEquipmentBorrowings EquipmentBorrowing[] @relation("EquipmentBorrowingReturner")
+
+  id           Int      @id @default(autoincrement())
+  code         String   @unique
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String
+  department   String
+  status       String
+  lastLogin    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([role])
+  @@index([status])
+  @@map("users")
+}
+
+model Session {
+  id        Int      @id @default(autoincrement())
+  tokenHash String   @unique
+  userId    Int
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user SystemUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Notification {
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  title         String
+  message       String
+  type          String
+  referenceId   Int?
+  referenceType String?
+  isRead        Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  user SystemUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model EquipmentBorrowing {
+  id   Int    @id @default(autoincrement())
+  code String @unique
+
+  equipmentId  Int
+  borrowerId   Int
+  approvedById Int?
+  returnedById Int?
+
+  quantity Int
+
+  purpose            String
+  borrowDate         DateTime
+  expectedReturnDate DateTime
+  actualReturnDate   DateTime?
+
+  status String @default("Chờ duyệt")
+
+  approvedAt DateTime?
+  note       String?
+
+  conditionBefore String?
+  conditionAfter  String?
+  returnedAt      DateTime?
+  returnNote      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  equipment Equipment @relation(fields: [equipmentId], references: [id])
+
+  borrower SystemUser @relation("EquipmentBorrowingBorrower", fields: [borrowerId], references: [id])
+
+  approvedBy SystemUser? @relation("EquipmentBorrowingApprover", fields: [approvedById], references: [id])
+
+  returnedBy SystemUser? @relation("EquipmentBorrowingReturner", fields: [returnedById], references: [id], onDelete: SetNull)
+
+  @@index([equipmentId])
+  @@index([borrowerId])
+  @@index([approvedById])
+  @@index([returnedById])
+  @@index([status])
+  @@index([expectedReturnDate])
+  @@map("equipment_borrowings")
+}
+
+model Maintenance {
+  id                Int      @id @default(autoincrement())
+  equipmentId       Int
+  createdById       Int
+  quantity          Int      @default(1)
+  type              String
+  issueDescription  String
+  startDate         DateTime
+  endDate           DateTime?
+  content           String
+  assignedTo        String?
+  repairResult      String?
+  conditionAfter    String?
+  cost              Float?
+  status            String   @default("Đang xử lý")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+  createdBy SystemUser @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([equipmentId])
+  @@index([createdById])
+  @@index([status])
+  @@map("maintenances")
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  action    String
+  module    String
+  objectId  String?
+  oldValue  String?
+  newValue  String?
+  createdAt DateTime @default(now())
+
+  user SystemUser? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([module, objectId])
+  @@map("audit_logs")
+}

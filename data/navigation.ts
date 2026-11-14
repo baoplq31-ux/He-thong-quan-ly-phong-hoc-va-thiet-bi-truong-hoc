@@ -6,6 +6,8 @@ import {
   DoorOpen,
   LayoutDashboard,
   Monitor,
+  PackageOpen,
+  ScrollText,
   Users,
   Wrench,
 } from "lucide-react";
@@ -45,6 +47,12 @@ export const navigationItems: NavigationItem[] = [
     group: "main",
   },
   {
+    id: "borrowings",
+    label: "Mượn thiết bị",
+    icon: PackageOpen,
+    group: "main",
+  },
+  {
     id: "incidents",
     label: "Sự cố & sửa chữa",
     icon: Wrench,
@@ -60,6 +68,18 @@ export const navigationItems: NavigationItem[] = [
     id: "users",
     label: "Người dùng",
     icon: Users,
+    group: "system",
+  },
+  {
+    id: "maintenance",
+    label: "Bảo trì thiết bị",
+    icon: Wrench,
+    group: "main",
+  },
+  {
+    id: "audit-logs",
+    label: "Nhật ký hệ thống",
+    icon: ScrollText,
     group: "system",
   },
 ];
@@ -92,6 +112,11 @@ export const viewInformation: Record<
     description: "Xếp lịch và xét duyệt yêu cầu sử dụng phòng",
     icon: CalendarDays,
   },
+  borrowings: {
+    title: "Mượn thiết bị",
+    description: "Duyệt, theo dõi và hoàn trả thiết bị cho người dùng",
+    icon: PackageOpen,
+  },
   incidents: {
     title: "Sự cố & sửa chữa",
     description: "Tiếp nhận và theo dõi quá trình xử lý sự cố",
@@ -106,5 +131,15 @@ export const viewInformation: Record<
     title: "Quản lý người dùng",
     description: "Quản lý tài khoản, vai trò và quyền hạn",
     icon: Users,
+  },
+  maintenance: {
+    title: "Bảo trì thiết bị",
+    description: "Ghi nhận hư hỏng và theo dõi tiến độ sửa chữa",
+    icon: Wrench,
+  },
+  "audit-logs": {
+    title: "Nhật ký hệ thống",
+    description: "Theo dõi các thay đổi quan trọng trong hệ thống",
+    icon: ScrollText,
   },
 };

@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -14,7 +15,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import type { Equipment } from "@/types";
 
 type EquipmentHealthCardProps = {
@@ -26,22 +26,34 @@ export function EquipmentHealthCard({
   equipment,
   onOpenEquipment,
 }: EquipmentHealthCardProps) {
-  const good = equipment.filter(
-    (item) => item.status === "Tốt",
-  ).length;
+  // Tổng số lượng thiết bị thực tế
+  const total = equipment.reduce(
+    (sum, item) => sum + item.quantity,
+    0,
+  );
 
-  const checking = equipment.filter(
-    (item) => item.status === "Cần kiểm tra",
-  ).length;
+  // Thống kê theo số lượng và tình trạng
+  const good = equipment.reduce(
+    (sum, item) =>
+      sum + (item.status === "Tốt" ? item.quantity : 0),
+    0,
+  );
 
-  const broken = equipment.filter(
-    (item) => item.status === "Hỏng",
-  ).length;
+  const checking = equipment.reduce(
+    (sum, item) =>
+      sum +
+      (item.status === "Cần kiểm tra" ? item.quantity : 0),
+    0,
+  );
+
+  const broken = equipment.reduce(
+    (sum, item) =>
+      sum + (item.status === "Hỏng" ? item.quantity : 0),
+    0,
+  );
 
   const healthPercent =
-    equipment.length === 0
-      ? 0
-      : Math.round((good / equipment.length) * 100);
+    total === 0 ? 0 : Math.round((good / total) * 100);
 
   const statuses = [
     {
@@ -49,18 +61,21 @@ export function EquipmentHealthCard({
       value: good,
       icon: CircleCheckBig,
       color: "text-emerald-400",
+      barColor: "bg-emerald-400",
     },
     {
-      label: "Kiểm tra",
+      label: "Cần kiểm tra",
       value: checking,
       icon: CircleAlert,
       color: "text-amber-400",
+      barColor: "bg-amber-400",
     },
     {
       label: "Hỏng",
       value: broken,
       icon: CircleX,
       color: "text-rose-400",
+      barColor: "bg-rose-400",
     },
   ];
 
@@ -92,14 +107,26 @@ export function EquipmentHealthCard({
             {healthPercent}%
           </p>
           <p className="pb-1 text-sm text-slate-400">
-            hoạt động tốt
+            thiết bị ở trạng thái tốt
           </p>
         </div>
 
-        <Progress
-          value={healthPercent}
-          className="mt-5 bg-white/10 [&>div]:bg-emerald-400"
-        />
+        <div className="mt-5 flex h-3 w-full overflow-hidden rounded-full bg-white/10">
+          {statuses.map((status) => (
+            <div
+              key={status.label}
+              className={status.barColor}
+              style={{
+                width: `${total === 0 ? 0 : (status.value / total) * 100}%`,
+              }}
+            />
+          ))}
+        </div>
+
+        <div className="mt-2 flex justify-between text-xs text-slate-400">
+          <span>{total} thiết bị</span>
+          <span>{good} thiết bị tốt</span>
+        </div>
 
         <div className="mt-6 grid grid-cols-3 gap-3">
           {statuses.map((status) => {
@@ -111,9 +138,11 @@ export function EquipmentHealthCard({
                 className="rounded-xl bg-white/5 p-3"
               >
                 <Icon className={`size-4 ${status.color}`} />
+
                 <p className="mt-3 text-xl font-semibold">
                   {status.value}
                 </p>
+
                 <p className="text-xs text-slate-400">
                   {status.label}
                 </p>

@@ -187,11 +187,6 @@ try {
           </Button>
         }
       />
-        <Button className="gap-2">
-          <Plus className="size-4" />
-          Thêm người dùng
-        </Button>
-      
 
       <DialogContent className="sm:max-w-2xl">
         <form onSubmit={handleSubmit}>

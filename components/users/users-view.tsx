@@ -4,14 +4,18 @@ import { useMemo, useState } from "react";
 import {
   CircleCheckBig,
   Lock,
+  Pencil,
   SearchX,
   Shield,
   Unlock,
   Users,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { UserEditDialog } from "./user-edit-dialog";
 import { UserFormDialog } from "./user-form-dialog";
+import { ChangePasswordDialog } from "@/components/auth/change-password-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,9 +50,18 @@ type UsersViewProps = {
   search: string;
   currentUserId: number;
   onAddUser: (user: SystemUser) => Promise<boolean>;
+  onUpdateUser: (
+    user: SystemUser,
+  ) => Promise<boolean>;
   onUpdateStatus: (
     id: number,
     status: UserStatus,
+  ) => Promise<boolean>;
+  onDeleteUser: (id: number) => Promise<boolean>;
+  onResetPassword: (
+    userId: number,
+    newPassword: string,
+    confirmPassword: string,
   ) => Promise<boolean>;
 };
 
@@ -82,9 +95,15 @@ export function UsersView({
   search,
   currentUserId,
   onAddUser,
+  onUpdateUser,
   onUpdateStatus,
+  onDeleteUser,
+  onResetPassword,
 }: UsersViewProps) {
   const [isUpdating, setIsUpdating] = useState(false);
+
+  const [editingUser, setEditingUser] =
+  useState<SystemUser | null>(null);
 
   const [roleFilter, setRoleFilter] =
     useState<RoleFilter>("all");
@@ -236,6 +255,43 @@ export function UsersView({
     } catch {
       toast.error(
         "Không thể cập nhật tài khoản. Vui lòng thử lại.",
+      );
+    } finally {
+      setIsUpdating(false);
+    }
+  }
+
+  async function handleDeleteUser(
+  user: SystemUser,
+  ) {
+    if (user.id === currentUserId) {
+      toast.error(
+        "Bạn không thể xóa tài khoản đang đăng nhập.",
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Bạn có chắc chắn muốn xóa người dùng "${user.name}" không?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsUpdating(true);
+
+    try {
+      const deleted = await onDeleteUser(user.id);
+
+      if (deleted) {
+        toast.success(
+          `Đã xóa người dùng ${user.name}.`,
+        );
+      }
+    } catch {
+      toast.error(
+        "Không thể xóa người dùng.",
       );
     } finally {
       setIsUpdating(false);
@@ -408,34 +464,73 @@ export function UsersView({
                     </TableCell>
 
                     <TableCell>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-2"
-                        disabled={
-                          isUpdating || user.id === currentUserId
-                        }
-                        onClick={() =>
-                          void toggleUserStatus(user)
-                        }
-                      >
-                        {user.id === currentUserId ? (
-                          <>
-                            <Shield className="size-3.5" />
-                            Đang dùng
-                          </>
-                        ) : user.status === "Hoạt động" ? (
-                          <>
-                            <Lock className="size-3.5" />
-                            Khóa
-                          </>
-                        ) : (
-                          <>
-                            <Unlock className="size-3.5" />
-                            Mở khóa
-                          </>
-                        )}
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="outline"
+                          title="Chỉnh sửa"
+                          disabled={isUpdating}
+                          onClick={() =>
+                            setEditingUser(user)
+                          }
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+
+                        <ChangePasswordDialog
+                          user={user}
+                          onReset={onResetPassword}
+                        />
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="gap-2"
+                          disabled={
+                            isUpdating ||
+                            user.id === currentUserId
+                          }
+                          onClick={() =>
+                            void toggleUserStatus(user)
+                          }
+                        >
+                          {user.id === currentUserId ? (
+                            <>
+                              <Shield className="size-3.5" />
+                              Đang dùng
+                            </>
+                          ) : user.status === "Hoạt động" ? (
+                            <>
+                              <Lock className="size-3.5" />
+                              Khóa
+                            </>
+                          ) : (
+                            <>
+                              <Unlock className="size-3.5" />
+                              Mở khóa
+                            </>
+                          )}
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                          disabled={
+                            isUpdating ||
+                            user.id === currentUserId
+                          }
+                          onClick={() =>
+                            void handleDeleteUser(user)
+                          }
+                          title="Xóa người dùng"
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -491,6 +586,19 @@ export function UsersView({
           ))}
         </CardContent>
       </Card>
+      {editingUser && (
+        <UserEditDialog
+          key={editingUser.id}
+          user={editingUser}
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setEditingUser(null);
+            }
+          }}
+          onSave={onUpdateUser}
+        />
+      )}
     </div>
   );
 }

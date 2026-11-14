@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { recordAuditSafely } from "@/lib/audit";
 import {
   FACILITY_MANAGER_ROLES,
   requireApiUser,
@@ -20,6 +21,8 @@ const ROOM_STATUSES: readonly string[] = [
   "Đang trống",
   "Đang sử dụng",
   "Bảo trì",
+  "Tạm khóa",
+  "Ngừng sử dụng",
 ];
 
 type CreateRoomBody = {
@@ -145,6 +148,19 @@ if (!auth.ok) {
       },
     });
 
+    await recordAuditSafely({
+      userId: auth.user.id,
+      action: "Tạo phòng",
+      module: "room",
+      objectId: room.id,
+      newValue: {
+        code: room.code,
+        name: room.name,
+        capacity: room.capacity,
+        status: room.status,
+      },
+    });
+
     return NextResponse.json(
       {
         message: "Thêm phòng thành công",
@@ -243,6 +259,25 @@ export async function PATCH(request: Request) {
       },
     });
 
+    await recordAuditSafely({
+      userId: auth.user.id,
+      action: "Cập nhật phòng",
+      module: "room",
+      objectId: room.id,
+      oldValue: {
+        code: existingRoom.code,
+        name: existingRoom.name,
+        capacity: existingRoom.capacity,
+        status: existingRoom.status,
+      },
+      newValue: {
+        code: room.code,
+        name: room.name,
+        capacity: room.capacity,
+        status: room.status,
+      },
+    });
+
     return NextResponse.json({
       message: "Cập nhật phòng học thành công.",
       room: {
@@ -306,6 +341,14 @@ export async function DELETE(request: Request) {
 
     await prisma.room.delete({
       where: { id },
+    });
+
+    await recordAuditSafely({
+      userId: auth.user.id,
+      action: "Xóa phòng",
+      module: "room",
+      objectId: id,
+      oldValue: { code: room.code },
     });
 
     return NextResponse.json({

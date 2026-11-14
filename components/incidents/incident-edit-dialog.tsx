@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import type {
@@ -43,6 +43,11 @@ const SEVERITIES: IncidentSeverity[] = [
   "Khẩn cấp",
 ];
 
+type IncidentFormState = Pick<
+  Incident,
+  "title" | "location" | "reportedBy" | "severity"
+>;
+
 export function IncidentEditDialog({
   incident,
   rooms,
@@ -50,26 +55,20 @@ export function IncidentEditDialog({
   onOpenChange,
   onSave,
 }: IncidentEditDialogProps) {
-  const [title, setTitle] = useState("");
-  const [location, setLocation] = useState("");
-  const [reportedBy, setReportedBy] =
-    useState("");
-
-  const [severity, setSeverity] =
-    useState<IncidentSeverity>("Trung bình");
-
+  const [form, setForm] = useState<IncidentFormState>(() => ({
+    title: incident?.title ?? "",
+    location: incident?.location ?? "",
+    reportedBy: incident?.reportedBy ?? "",
+    severity: incident?.severity ?? "Trung bình",
+  }));
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (!incident) {
-      return;
-    }
-
-    setTitle(incident.title);
-    setLocation(incident.location);
-    setReportedBy(incident.reportedBy);
-    setSeverity(incident.severity);
-  }, [incident]);
+  function updateField<K extends keyof IncidentFormState>(
+    field: K,
+    value: IncidentFormState[K],
+  ) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
 
   async function handleSubmit(
     event: React.FormEvent<HTMLFormElement>,
@@ -80,21 +79,21 @@ export function IncidentEditDialog({
       return;
     }
 
-    if (!title.trim()) {
+    if (!form.title.trim()) {
       toast.error(
         "Vui lòng nhập nội dung sự cố.",
       );
       return;
     }
 
-    if (!location.trim()) {
+    if (!form.location.trim()) {
       toast.error(
         "Vui lòng chọn phòng xảy ra sự cố.",
       );
       return;
     }
 
-    if (!reportedBy.trim()) {
+    if (!form.reportedBy.trim()) {
       toast.error(
         "Vui lòng nhập người báo sự cố.",
       );
@@ -107,15 +106,15 @@ export function IncidentEditDialog({
       const saved = await onSave({
         ...incident,
 
-        title: title.trim(),
+        title: form.title.trim(),
 
-        location: location
+        location: form.location
           .trim()
           .toUpperCase(),
 
-        reportedBy: reportedBy.trim(),
+        reportedBy: form.reportedBy.trim(),
 
-        severity,
+        severity: form.severity,
       });
 
       if (saved) {
@@ -173,9 +172,9 @@ export function IncidentEditDialog({
 
             <Input
               id="incident-edit-title"
-              value={title}
+              value={form.title}
               onChange={(event) =>
-                setTitle(event.target.value)
+                updateField("title", event.target.value)
               }
               placeholder="Ví dụ: Máy chiếu không hoạt động"
               disabled={saving}
@@ -189,12 +188,12 @@ export function IncidentEditDialog({
             </Label>
 
             <Select
-                value={location}
-                onValueChange={(value) =>
-                    setLocation(value ?? "")
-                }
-                disabled={saving}
-                >
+              value={form.location}
+              onValueChange={(value) =>
+                updateField("location", value ?? "")
+              }
+              disabled={saving}
+            >
               <SelectTrigger
                 id="incident-edit-location"
                 className="w-full"
@@ -223,9 +222,9 @@ export function IncidentEditDialog({
 
             <Input
               id="incident-edit-reported-by"
-              value={reportedBy}
+              value={form.reportedBy}
               onChange={(event) =>
-                setReportedBy(event.target.value)
+                updateField("reportedBy", event.target.value)
               }
               placeholder="Tên người báo sự cố"
               disabled={saving}
@@ -239,11 +238,9 @@ export function IncidentEditDialog({
             </Label>
 
             <Select
-              value={severity}
+              value={form.severity}
               onValueChange={(value) =>
-                setSeverity(
-                  value as IncidentSeverity,
-                )
+                updateField("severity", value as IncidentSeverity)
               }
               disabled={saving}
             >

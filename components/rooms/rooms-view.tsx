@@ -33,6 +33,8 @@ const statusClasses: Record<RoomStatus, string> = {
   "Đang trống": "border-emerald-200 bg-emerald-50 text-emerald-700",
   "Đang sử dụng": "border-amber-200 bg-amber-50 text-amber-700",
   "Bảo trì": "border-rose-200 bg-rose-50 text-rose-700",
+  "Tạm khóa": "border-orange-200 bg-orange-50 text-orange-700",
+  "Ngừng sử dụng": "border-slate-200 bg-slate-100 text-slate-700",
 };
 
 export function RoomsView({
@@ -140,6 +142,12 @@ export function RoomsView({
             </TabsTrigger>
             <TabsTrigger value="Bảo trì" className="rounded-lg">
               Bảo trì
+            </TabsTrigger>
+            <TabsTrigger value="Tạm khóa" className="rounded-lg">
+              Tạm khóa
+            </TabsTrigger>
+            <TabsTrigger value="Ngừng sử dụng" className="rounded-lg">
+              Ngừng sử dụng
             </TabsTrigger>
           </TabsList>
         </Tabs>

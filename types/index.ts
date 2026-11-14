@@ -3,14 +3,19 @@ export type View =
   | "rooms"
   | "equipment"
   | "bookings"
+  | "borrowings"
   | "incidents"
   | "reports"
-  | "users";
+  | "users"
+  | "maintenance"
+  | "audit-logs";
 
 export type RoomStatus =
   | "Đang trống"
   | "Đang sử dụng"
-  | "Bảo trì";
+  | "Bảo trì"
+  | "Tạm khóa"
+  | "Ngừng sử dụng";
 
 export interface Room {
   id: number;
@@ -36,6 +41,7 @@ export interface Equipment {
   type: string;
   room: string;
   quantity: number;
+  availableQuantity?: number;
   status: EquipmentStatus;
   lastChecked: string;
 }
@@ -43,7 +49,9 @@ export interface Equipment {
 export type BookingStatus =
   | "Đã duyệt"
   | "Chờ duyệt"
-  | "Từ chối";
+  | "Từ chối"
+  | "Đã hủy"
+  | "Đã hoàn thành";
 
 export interface Booking {
   id: number;
@@ -53,6 +61,12 @@ export interface Booking {
   course: string;
   person: string;
   status: BookingStatus;
+  userId?: number | null;
+  attendeeCount?: number;
+  note?: string | null;
+  rejectionReason?: string | null;
+  approvedById?: number | null;
+  approvedAt?: string | null;
 }
 
 export type IncidentSeverity =

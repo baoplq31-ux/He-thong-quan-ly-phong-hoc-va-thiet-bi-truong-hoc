@@ -29,25 +29,6 @@ type LoginViewProps = {
   ) => Promise<boolean>;
 };
 
-const demoAccounts = [
-  {
-    role: "Quản trị viên",
-    code: "QT001",
-  },
-  {
-    role: "Cán bộ thiết bị",
-    code: "TB001",
-  },
-  {
-    role: "Giảng viên",
-    code: "GV001",
-  },
-  {
-    role: "Sinh viên",
-    code: "SV001",
-  },
-];
-
 export function LoginView({
   onLogin,
 }: LoginViewProps) {
@@ -77,11 +58,6 @@ export function LoginView({
     } finally {
       setIsSubmitting(false);
     }
-  }
-
-  function selectDemoAccount(code: string) {
-    setLoginName(code);
-    setPassword("123456");
   }
 
   return (
@@ -233,45 +209,6 @@ export function LoginView({
                 </Button>
               </form>
 
-              <div className="mt-7 border-t border-slate-200 pt-6">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">
-                    Tài khoản dùng thử
-                  </p>
-
-                  <p className="text-xs text-slate-500">
-                    Mật khẩu:{" "}
-                    <span className="font-semibold">
-                      123456
-                    </span>
-                  </p>
-                </div>
-
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {demoAccounts.map((account) => (
-                    <Button
-                      key={account.code}
-                      type="button"
-                      variant="outline"
-                      disabled={isSubmitting}
-                      className="h-auto justify-start px-3 py-2 text-left"
-                      onClick={() =>
-                        selectDemoAccount(account.code)
-                      }
-                    >
-                      <span>
-                        <span className="block text-sm font-medium">
-                          {account.role}
-                        </span>
-
-                        <span className="block text-xs font-normal text-slate-500">
-                          {account.code}
-                        </span>
-                      </span>
-                    </Button>
-                  ))}
-                </div>
-              </div>
             </CardContent>
           </Card>
         </div>

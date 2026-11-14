@@ -1,0 +1,13 @@
+import { BadRequestException, Controller, Delete, Get, Patch, Post, Body, Req } from "@nestjs/common";
+import type { Request } from "express";
+import { requireUser } from "../common/auth.js";
+import { positiveId, requiredText } from "../common/validation.js";
+import { PrismaService } from "../prisma.service.js";
+@Controller("api/notifications")
+export class NotificationsController {
+  constructor(private prisma: PrismaService) {}
+  @Get() async list(@Req() req: Request) { const user = await requireUser(req, this.prisma); const [notifications, unreadCount] = await Promise.all([this.prisma.notification.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, select: { id: true, title: true, message: true, isRead: true, createdAt: true, referenceType: true, referenceId: true } }), this.prisma.notification.count({ where: { userId: user.id, isRead: false } })]); return { notifications, unreadCount }; }
+  @Post() async create(@Req() req: Request, @Body() b: any) { const user = await requireUser(req, this.prisma); const data = await this.prisma.notification.create({ data: { userId: user.id, title: requiredText(b.title, "Tiêu đề"), message: requiredText(b.message, "Nội dung"), type: requiredText(b.type, "Loại"), referenceId: Number.isInteger(b.referenceId) ? b.referenceId : null, referenceType: typeof b.referenceType === "string" ? b.referenceType.trim() || null : null } }); return { success: true, data }; }
+  @Patch() async mark(@Req() req: Request, @Body() b: any) { const user = await requireUser(req, this.prisma); if (b.markAll === true) { await this.prisma.notification.updateMany({ where: { userId: user.id, isRead: false }, data: { isRead: true } }); return { success: true, message: "Đã đánh dấu tất cả thông báo là đã đọc." }; } const id = positiveId(b.id); const found = await this.prisma.notification.findFirst({ where: { id, userId: user.id } }); if (!found) throw new BadRequestException("Không tìm thấy thông báo."); return { success: true, data: await this.prisma.notification.update({ where: { id }, data: { isRead: true } }) }; }
+  @Delete() async remove(@Req() req: Request, @Body() b: any) { const user = await requireUser(req, this.prisma); if (b.deleteRead === true) { const result = await this.prisma.notification.deleteMany({ where: { userId: user.id, isRead: true } }); return { success: true, deletedCount: result.count, message: `Đã xóa ${result.count} thông báo đã đọc.` }; } const result = await this.prisma.notification.deleteMany({ where: { id: positiveId(b.id), userId: user.id } }); if (!result.count) throw new BadRequestException("Không tìm thấy thông báo."); return { success: true, deletedCount: result.count }; }
+}

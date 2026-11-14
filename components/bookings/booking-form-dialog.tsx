@@ -23,11 +23,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import type { Booking, Room } from "@/types";
 
 type BookingFormDialogProps = {
-  bookings: Booking[];
-  rooms: Room[];
+  requesterName: string;
   onAddBooking: (booking: Booking) => Promise<boolean>;
 };
 
@@ -37,7 +37,8 @@ type FormState = {
   endTime: string;
   room: string;
   course: string;
-  person: string;
+  attendeeCount: string;
+  note: string;
 };
 
 function getToday() {
@@ -57,7 +58,8 @@ function createInitialForm(): FormState {
     endTime: "09:00",
     room: "",
     course: "",
-    person: "",
+    attendeeCount: "1",
+    note: "",
   };
 }
 
@@ -67,17 +69,8 @@ function formatDate(value: string) {
   return `${day}/${month}/${year}`;
 }
 
-function getTimeRange(value: string) {
-  const [start, end] = value
-    .split(/[–—-]/)
-    .map((item) => item.trim());
-
-  return { start, end };
-}
-
 export function BookingFormDialog({
-  bookings,
-  rooms,
+  requesterName,
   onAddBooking,
 }: BookingFormDialogProps) {
   const [open, setOpen] = useState(false);
@@ -86,6 +79,59 @@ export function BookingFormDialog({
   const [form, setForm] = useState<FormState>(
     createInitialForm,
   );
+  const [availableRooms, setAvailableRooms] = useState<
+    Pick<Room, "id" | "code" | "name" | "capacity" | "status">[]
+  >([]);
+  const [isSearchingRooms, setIsSearchingRooms] = useState(false);
+
+  async function searchAvailableRooms() {
+    if (
+      !form.date ||
+      !form.startTime ||
+      !form.endTime ||
+      form.startTime >= form.endTime ||
+      !Number.isInteger(Number(form.attendeeCount)) ||
+      Number(form.attendeeCount) < 1
+    ) {
+      toast.error("Vui lòng nhập ngày, khung giờ và số người hợp lệ.");
+      return;
+    }
+
+    setIsSearchingRooms(true);
+    setAvailableRooms([]);
+    try {
+      const params = new URLSearchParams({
+        date: formatDate(form.date),
+        start: form.startTime,
+        end: form.endTime,
+        attendeeCount: form.attendeeCount,
+      });
+      const response = await fetch(`/api/bookings?${params.toString()}`, {
+        cache: "no-store",
+        credentials: "include",
+      });
+      const result = (await response.json()) as {
+        data?: Pick<Room, "id" | "code" | "name" | "capacity" | "status">[];
+        message?: string;
+      };
+
+      if (!response.ok) {
+        toast.error(result.message ?? "Không thể tìm phòng trống.");
+        return;
+      }
+
+      setAvailableRooms(result.data ?? []);
+      updateField("room", "");
+      if (!result.data?.length) {
+        toast.info("Không tìm thấy phòng phù hợp trong khung giờ này.");
+      }
+    } catch (error) {
+      console.error("Không thể tìm phòng trống:", error);
+      toast.error("Không thể kết nối tới máy chủ.");
+    } finally {
+      setIsSearchingRooms(false);
+    }
+  }
 
   function updateField<K extends keyof FormState>(
     field: K,
@@ -128,7 +174,9 @@ export function BookingFormDialog({
       !form.endTime ||
       !form.room ||
       !form.course.trim() ||
-      !form.person.trim()
+      !Number.isInteger(Number(form.attendeeCount)) ||
+      Number(form.attendeeCount) < 1 ||
+      !availableRooms.some((room) => room.code === form.room)
     ) {
       toast.error("Vui lòng nhập đầy đủ thông tin");
       return;
@@ -141,48 +189,15 @@ export function BookingFormDialog({
 
     const bookingDate = formatDate(form.date);
 
-    const hasConflict = bookings.some((booking) => {
-      if (
-        booking.room !== form.room ||
-        booking.date !== bookingDate ||
-        booking.status === "Từ chối"
-      ) {
-        return false;
-      }
-
-      const existingTime = getTimeRange(booking.time);
-
-      if (!existingTime.start || !existingTime.end) {
-        return false;
-      }
-
-      return (
-        form.startTime < existingTime.end &&
-        form.endTime > existingTime.start
-      );
-    });
-
-    if (hasConflict) {
-      toast.error(
-        "Phòng đã có lịch trong khoảng thời gian này",
-      );
-      return;
-    }
-
-    const nextId =
-      bookings.length > 0
-        ? Math.max(
-            ...bookings.map((booking) => booking.id),
-          ) + 1
-        : 1;
-
     const newBooking: Booking = {
-      id: nextId,
+      id: 0,
       date: bookingDate,
       time: `${form.startTime}–${form.endTime}`,
       room: form.room,
       course: form.course.trim(),
-      person: form.person.trim(),
+      person: requesterName,
+      attendeeCount: Number(form.attendeeCount),
+      note: form.note.trim(),
       status: "Chờ duyệt",
     };
 
@@ -246,44 +261,42 @@ export function BookingFormDialog({
                 value={form.date}
                 disabled={isSaving}
                 required
-                onChange={(event) =>
-                  updateField(
-                    "date",
-                    event.target.value,
-                  )
-                }
+                onChange={(event) => {
+                  updateField("date", event.target.value);
+                  updateField("room", "");
+                  setAvailableRooms([]);
+                }}
               />
             </div>
 
             <div className="space-y-2">
-              <Label>Phòng học</Label>
-
+              <Label htmlFor="booking-room">Phòng học</Label>
               <Select
                 value={form.room}
-                disabled={isSaving}
+                disabled={isSaving || availableRooms.length === 0}
                 onValueChange={(value) =>
                   updateField("room", value ?? "")
                 }
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Chọn phòng" />
+                <SelectTrigger id="booking-room" className="w-full">
+                  <SelectValue placeholder="Tìm phòng theo thời gian và sức chứa" />
                 </SelectTrigger>
-
                 <SelectContent>
-                  {rooms
-                    .filter(
-                      (room) => room.status !== "Bảo trì",
-                    )
-                    .map((room) => (
-                      <SelectItem
-                        key={room.id}
-                        value={room.code}
-                      >
-                        {room.code} - {room.name}
-                      </SelectItem>
-                    ))}
+                  {availableRooms.map((room) => (
+                    <SelectItem key={room.id} value={room.code}>
+                      {room.code} - {room.name} (sức chứa {room.capacity})
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isSaving || isSearchingRooms}
+                onClick={() => void searchAvailableRooms()}
+              >
+                {isSearchingRooms ? "Đang tìm..." : "Tìm phòng trống"}
+              </Button>
             </div>
 
             <div className="space-y-2">
@@ -297,12 +310,11 @@ export function BookingFormDialog({
                 value={form.startTime}
                 disabled={isSaving}
                 required
-                onChange={(event) =>
-                  updateField(
-                    "startTime",
-                    event.target.value,
-                  )
-                }
+                onChange={(event) => {
+                  updateField("startTime", event.target.value);
+                  updateField("room", "");
+                  setAvailableRooms([]);
+                }}
               />
             </div>
 
@@ -317,12 +329,11 @@ export function BookingFormDialog({
                 value={form.endTime}
                 disabled={isSaving}
                 required
-                onChange={(event) =>
-                  updateField(
-                    "endTime",
-                    event.target.value,
-                  )
-                }
+                onChange={(event) => {
+                  updateField("endTime", event.target.value);
+                  updateField("room", "");
+                  setAvailableRooms([]);
+                }}
               />
             </div>
 
@@ -346,23 +357,35 @@ export function BookingFormDialog({
               />
             </div>
 
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="person">
-                Người đăng ký
+            <div className="space-y-2">
+              <Label htmlFor="booking-attendee-count">
+                Số người tham dự
               </Label>
-
               <Input
-                id="person"
-                placeholder="Nhập họ và tên"
-                value={form.person}
+                id="booking-attendee-count"
+                type="number"
+                min={1}
+                step={1}
+                value={form.attendeeCount}
                 disabled={isSaving}
                 required
-                onChange={(event) =>
-                  updateField(
-                    "person",
-                    event.target.value,
-                  )
-                }
+                onChange={(event) => {
+                  updateField("attendeeCount", event.target.value);
+                  updateField("room", "");
+                  setAvailableRooms([]);
+                }}
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="booking-note">
+                Ghi chú (không bắt buộc)
+              </Label>
+              <Textarea
+                id="booking-note"
+                maxLength={500}
+                value={form.note}
+                disabled={isSaving}
+                onChange={(event) => updateField("note", event.target.value)}
               />
             </div>
           </div>

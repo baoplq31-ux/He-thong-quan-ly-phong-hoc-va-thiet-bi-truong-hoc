@@ -267,7 +267,9 @@ export function RoomFormDialog({
                     if (
                       value === "Đang trống" ||
                       value === "Đang sử dụng" ||
-                      value === "Bảo trì"
+                      value === "Bảo trì" ||
+                      value === "Tạm khóa" ||
+                      value === "Ngừng sử dụng"
                     ) {
                       setRoomStatus(value);
                     }
@@ -280,6 +282,8 @@ export function RoomFormDialog({
                     <SelectItem value="Đang trống">Đang trống</SelectItem>
                     <SelectItem value="Đang sử dụng">Đang sử dụng</SelectItem>
                     <SelectItem value="Bảo trì">Bảo trì</SelectItem>
+                    <SelectItem value="Tạm khóa">Tạm khóa</SelectItem>
+                    <SelectItem value="Ngừng sử dụng">Ngừng sử dụng</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

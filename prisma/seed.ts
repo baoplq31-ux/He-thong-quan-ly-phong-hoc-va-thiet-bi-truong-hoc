@@ -1,15 +1,18 @@
 import "dotenv/config";
 
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { hash } from "bcryptjs";
 
 import { PrismaClient, type Room } from "../generated/prisma/client";
 
-const connectionString =
-  process.env.DATABASE_URL ?? "file:./dev.db";
+const connectionString = process.env.DATABASE_URL;
 
-const adapter = new PrismaBetterSqlite3({
-  url: connectionString,
+if (!connectionString) {
+  throw new Error("DATABASE_URL chưa được cấu hình.");
+}
+
+const adapter = new PrismaPg({
+  connectionString,
 });
 
 const prisma = new PrismaClient({
@@ -150,6 +153,7 @@ function getRoomId(code: string): number {
         type: "Máy chiếu",
         roomId: getRoomId("A101"),
         quantity: 1,
+        availableQuantity: 1,
         status: "Tốt",
         lastChecked: "25/09/2026",
       },
@@ -160,6 +164,7 @@ function getRoomId(code: string): number {
         type: "Máy tính",
         roomId: getRoomId("A203"),
         quantity: 40,
+        availableQuantity: 40,
         status: "Tốt",
         lastChecked: "23/09/2026",
       },
@@ -170,6 +175,7 @@ function getRoomId(code: string): number {
         type: "Điều hòa",
         roomId: getRoomId("B201"),
         quantity: 2,
+        availableQuantity: 2,
         status: "Cần kiểm tra",
         lastChecked: "20/09/2026",
       },
@@ -180,6 +186,7 @@ function getRoomId(code: string): number {
         type: "Thiết bị mạng",
         roomId: getRoomId("B305"),
         quantity: 1,
+        availableQuantity: 0,
         status: "Hỏng",
         lastChecked: "18/09/2026",
       },
@@ -190,6 +197,7 @@ function getRoomId(code: string): number {
         type: "Thiết bị âm thanh",
         roomId: getRoomId("A102"),
         quantity: 2,
+        availableQuantity: 2,
         status: "Tốt",
         lastChecked: "22/09/2026",
       },
@@ -200,6 +208,7 @@ function getRoomId(code: string): number {
         type: "Thiết bị ngoại ngữ",
         roomId: getRoomId("C101"),
         quantity: 45,
+        availableQuantity: 45,
         status: "Cần kiểm tra",
         lastChecked: "19/09/2026",
       },
@@ -210,6 +219,7 @@ function getRoomId(code: string): number {
         type: "Màn hình tương tác",
         roomId: getRoomId("C202"),
         quantity: 2,
+        availableQuantity: 2,
         status: "Tốt",
         lastChecked: "24/09/2026",
       },

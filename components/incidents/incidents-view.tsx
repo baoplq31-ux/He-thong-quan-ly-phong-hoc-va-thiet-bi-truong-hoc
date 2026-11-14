@@ -627,17 +627,20 @@ export function IncidentsView({
         </CardContent>
       </Card>
 
-      <IncidentEditDialog
-        incident={editingIncident}
-        rooms={rooms}
-        open={editingIncident !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setEditingIncident(null);
-          }
-        }}
-        onSave={onUpdateIncident}
-      />
+      {editingIncident && (
+        <IncidentEditDialog
+          key={editingIncident.id}
+          incident={editingIncident}
+          rooms={rooms}
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setEditingIncident(null);
+            }
+          }}
+          onSave={onUpdateIncident}
+        />
+      )}
     </div>
   );
 }

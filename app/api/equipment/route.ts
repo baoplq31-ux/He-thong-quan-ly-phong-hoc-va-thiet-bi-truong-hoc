@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { notifyEquipmentIssue } from "@/lib/notifications";
+import { recordAuditSafely } from "@/lib/audit";
 
 import { prisma } from "@/lib/prisma";
 import { FACILITY_MANAGER_ROLES, requireApiUser } from "@/lib/api-auth";
@@ -149,6 +151,8 @@ if (!auth.ok) {
                 type,
                 roomId: room.id,
                 quantity,
+                availableQuantity:
+                  status === "Hỏng" ? 0 : quantity,
                 status,
                 lastChecked,
               },
@@ -173,6 +177,31 @@ if (!auth.ok) {
           return createdEquipment;
         },
       );
+
+      if (
+      equipment.status === "Hỏng" ||
+      equipment.status === "Cần kiểm tra"
+    ) {
+      await notifyEquipmentIssue(
+        equipment.id,
+        equipment.code,
+        equipment.name,
+        equipment.status,
+      );
+    }
+
+    await recordAuditSafely({
+      userId: auth.user.id,
+      action: "Tạo thiết bị",
+      module: "equipment",
+      objectId: equipment.id,
+      newValue: {
+        code: equipment.code,
+        quantity: equipment.quantity,
+        availableQuantity: equipment.availableQuantity,
+        status: equipment.status,
+      },
+    });
 
     return NextResponse.json(
       {
@@ -272,6 +301,42 @@ export async function PATCH(request: Request) {
     }
 
     const equipment = await prisma.$transaction(async (tx) => {
+      const activeBorrowings =
+        await tx.equipmentBorrowing.aggregate({
+          where: {
+            equipmentId: id,
+            status: {
+              in: ["Đã duyệt", "Đang mượn", "Quá hạn"],
+            },
+          },
+          _sum: {
+            quantity: true,
+          },
+        });
+      const activeMaintenance = await tx.maintenance.aggregate({
+        where: {
+          equipmentId: id,
+          status: "Đang xử lý",
+        },
+        _sum: { quantity: true },
+      });
+      const borrowedQuantity =
+        activeBorrowings._sum.quantity ?? 0;
+      const maintenanceQuantity =
+        activeMaintenance._sum.quantity ?? 0;
+
+      if (quantity < borrowedQuantity + maintenanceQuantity) {
+        throw new ApiError(
+          `Không thể giảm tổng số lượng dưới số đang được mượn hoặc bảo trì (${borrowedQuantity + maintenanceQuantity}).`,
+          409,
+        );
+      }
+
+      const availableQuantity =
+        status === "Hỏng"
+          ? 0
+          : quantity - borrowedQuantity - maintenanceQuantity;
+
       const updatedEquipment = await tx.equipment.update({
         where: { id },
         data: {
@@ -280,6 +345,7 @@ export async function PATCH(request: Request) {
           type,
           roomId: targetRoom.id,
           quantity,
+          availableQuantity,
           status,
           lastChecked,
         },
@@ -321,6 +387,41 @@ export async function PATCH(request: Request) {
       }
 
       return updatedEquipment;
+    });
+
+    const statusChanged =
+      currentEquipment.status !== equipment.status;
+
+    const hasIssue =
+      equipment.status === "Hỏng" ||
+      equipment.status === "Cần kiểm tra";
+
+    if (statusChanged && hasIssue) {
+      await notifyEquipmentIssue(
+        equipment.id,
+        equipment.code,
+        equipment.name,
+        equipment.status,
+      );
+    }
+
+    await recordAuditSafely({
+      userId: auth.user.id,
+      action: "Cập nhật thiết bị",
+      module: "equipment",
+      objectId: equipment.id,
+      oldValue: {
+        code: currentEquipment.code,
+        quantity: currentEquipment.quantity,
+        availableQuantity: currentEquipment.availableQuantity,
+        status: currentEquipment.status,
+      },
+      newValue: {
+        code: equipment.code,
+        quantity: equipment.quantity,
+        availableQuantity: equipment.availableQuantity,
+        status: equipment.status,
+      },
     });
 
     return NextResponse.json({
@@ -368,6 +469,17 @@ export async function DELETE(request: Request) {
     await prisma.$transaction(async (tx) => {
       await tx.equipment.delete({
         where: { id },
+      });
+
+      await recordAuditSafely({
+        userId: auth.user.id,
+        action: "Xóa thiết bị",
+        module: "equipment",
+        objectId: id,
+        oldValue: {
+          code: equipment.code,
+          roomId: equipment.roomId,
+        },
       });
 
       const remainingEquipmentCount = await tx.equipment.count({

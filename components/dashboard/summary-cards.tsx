@@ -35,15 +35,18 @@ export function SummaryCards({
     0,
   );
 
-  const healthyEquipment = equipment.filter(
-    (item) => item.status === "Tốt",
-  ).length;
+  const healthyEquipment = equipment.reduce(
+    (total, item) =>
+      total +
+      (item.status === "Tốt" ? item.quantity : 0),
+    0,
+  );
 
   const healthRate =
-    equipment.length === 0
+    totalEquipment === 0
       ? 0
       : Math.round(
-          (healthyEquipment / equipment.length) * 100,
+          (healthyEquipment / totalEquipment) * 100,
         );
 
   const pendingBookings = bookings.filter(

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -52,25 +52,20 @@ export function EquipmentEditDialog({
   onOpenChange,
   onSave,
 }: EquipmentEditDialogProps) {
-  const [form, setForm] =
-    useState<EquipmentFormState>(EMPTY_FORM);
+  const [form, setForm] = useState<EquipmentFormState>(() =>
+    equipment
+      ? {
+          code: equipment.code,
+          name: equipment.name,
+          type: equipment.type,
+          room: equipment.room,
+          quantity: equipment.quantity,
+          status: equipment.status,
+          lastChecked: equipment.lastChecked,
+        }
+      : EMPTY_FORM,
+  );
   const [isSaving, setIsSaving] = useState(false);
-
-  useEffect(() => {
-    if (!equipment) {
-      return;
-    }
-
-    setForm({
-      code: equipment.code,
-      name: equipment.name,
-      type: equipment.type,
-      room: equipment.room,
-      quantity: equipment.quantity,
-      status: equipment.status,
-      lastChecked: equipment.lastChecked,
-    });
-  }, [equipment]);
 
   const updateField = <K extends keyof EquipmentFormState>(
     field: K,
@@ -240,6 +235,13 @@ export function EquipmentEditDialog({
                 }
                 disabled={isSaving}
               />
+              {equipment && (
+                <p className="text-xs text-muted-foreground">
+                  Còn khả dụng:{" "}
+                  {equipment.availableQuantity ?? equipment.quantity}. Số
+                  lượng này được đồng bộ tự động với phiếu mượn.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

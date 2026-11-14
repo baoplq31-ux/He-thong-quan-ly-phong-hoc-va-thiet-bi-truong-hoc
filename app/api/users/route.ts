@@ -14,6 +14,7 @@ import {
 } from "@/lib/api-write";
 
 import { prisma } from "@/lib/prisma";
+import { recordAuditSafely } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
 
     const passwordHash = await hash("123456", 10);
 
-    await prisma.systemUser.create({
+    const user = await prisma.systemUser.create({
       data: {
         code,
         name,
@@ -77,6 +78,21 @@ export async function POST(request: Request) {
         role,
         department,
         status: "Hoạt động",
+      },
+    });
+
+    await recordAuditSafely({
+      userId: auth.user.id,
+      action: "Tạo tài khoản",
+      module: "user",
+      objectId: user.id,
+      newValue: {
+        code: user.code,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        department: user.department,
+        status: user.status,
       },
     });
 
@@ -102,21 +118,70 @@ export async function PATCH(request: Request) {
 
     const id = positiveId(body.id);
 
+    const code =
+      body.code !== undefined
+        ? requiredText(
+            body.code,
+            "Mã người dùng",
+          ).toUpperCase()
+        : undefined;
+
+    const name =
+      body.name !== undefined
+        ? requiredText(body.name, "Họ tên")
+        : undefined;
+
+    const email =
+      body.email !== undefined
+        ? requiredText(
+            body.email,
+            "Email",
+          ).toLowerCase()
+        : undefined;
+
     const role =
       body.role !== undefined
         ? requiredText(body.role, "Vai trò")
         : undefined;
 
-    const status =
-      body.status !== undefined
-        ? requiredText(body.status, "Trạng thái")
+    const department =
+      body.department !== undefined
+        ? requiredText(
+            body.department,
+            "Đơn vị",
+          )
         : undefined;
 
-    if (role !== undefined && !ROLES.includes(role)) {
-      throw new ApiError("Vai trò không hợp lệ.");
+    const status =
+      body.status !== undefined
+        ? requiredText(
+            body.status,
+            "Trạng thái",
+          )
+        : undefined;
+
+    if (
+      email !== undefined &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    ) {
+      throw new ApiError(
+        "Email không hợp lệ.",
+      );
     }
 
-    if (status !== undefined && !STATUSES.includes(status)) {
+    if (
+      role !== undefined &&
+      !ROLES.includes(role)
+    ) {
+      throw new ApiError(
+        "Vai trò không hợp lệ.",
+      );
+    }
+
+    if (
+      status !== undefined &&
+      !STATUSES.includes(status)
+    ) {
       throw new ApiError(
         "Trạng thái tài khoản không hợp lệ.",
       );
@@ -132,12 +197,32 @@ export async function PATCH(request: Request) {
     }
 
     const data: {
+      code?: string;
+      name?: string;
+      email?: string;
       role?: string;
+      department?: string;
       status?: string;
     } = {};
 
+    if (code !== undefined) {
+      data.code = code;
+    }
+
+    if (name !== undefined) {
+      data.name = name;
+    }
+
+    if (email !== undefined) {
+      data.email = email;
+    }
+
     if (role !== undefined) {
       data.role = role;
+    }
+
+    if (department !== undefined) {
+      data.department = department;
     }
 
     if (status !== undefined) {
@@ -150,24 +235,138 @@ export async function PATCH(request: Request) {
       );
     }
 
-    await prisma.$transaction(async (transaction) => {
-      await transaction.systemUser.update({
-        where: { id },
-        data,
-      });
+    const currentUser = await prisma.systemUser.findUnique({
+      where: { id },
+      select: {
+        code: true,
+        name: true,
+        email: true,
+        role: true,
+        department: true,
+        status: true,
+      },
+    });
+    if (!currentUser) {
+      throw new ApiError("Không tìm thấy người dùng.", 404);
+    }
 
-      if (status === "Đã khóa") {
-        await transaction.session.deleteMany({
-          where: { userId: id },
+    const updatedUser = await prisma.$transaction(
+      async (transaction) => {
+        const updated = await transaction.systemUser.update({
+          where: {
+            id,
+          },
+          data,
         });
-      }
+
+        if (status === "Đã khóa") {
+          await transaction.session.deleteMany({
+            where: {
+              userId: id,
+            },
+          });
+        }
+
+        return updated;
+      },
+    );
+
+    await recordAuditSafely({
+      userId: auth.user.id,
+      action: "Cập nhật tài khoản",
+      module: "user",
+      objectId: id,
+      oldValue: currentUser,
+      newValue: {
+        code: updatedUser.code,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        department: updatedUser.department,
+        status: updatedUser.status,
+      },
     });
 
     return Response.json({
-      message: "Đã cập nhật thông tin tài khoản.",
+      message:
+        "Đã cập nhật thông tin người dùng.",
     });
   } catch (error) {
-    console.error("PATCH /api/users:", error);
+    console.error(
+      "PATCH /api/users:",
+      error,
+    );
+
+    return apiError(error);
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const auth = await requireApiUser(ADMIN_ROLES);
+
+    if (!auth.ok) {
+      return auth.response;
+    }
+
+    const body = await readBody(request);
+
+    const id = positiveId(body.id);
+
+    if (id === auth.user.id) {
+      throw new ApiError(
+        "Bạn không thể xóa tài khoản đang đăng nhập.",
+      );
+    }
+
+    const user = await prisma.systemUser.findUnique({
+      where: { id },
+      select: {
+        code: true,
+        name: true,
+        email: true,
+        role: true,
+        department: true,
+        status: true,
+      },
+    });
+    if (!user) {
+      throw new ApiError("Không tìm thấy người dùng.", 404);
+    }
+
+    await prisma.$transaction(
+      async (transaction) => {
+        await transaction.session.deleteMany({
+          where: {
+            userId: id,
+          },
+        });
+
+        await transaction.systemUser.delete({
+          where: {
+            id,
+          },
+        });
+      },
+    );
+
+    await recordAuditSafely({
+      userId: auth.user.id,
+      action: "Xóa tài khoản",
+      module: "user",
+      objectId: id,
+      oldValue: user,
+    });
+
+    return Response.json({
+      message: "Đã xóa người dùng.",
+    });
+  } catch (error) {
+    console.error(
+      "DELETE /api/users:",
+      error,
+    );
+
     return apiError(error);
   }
 }

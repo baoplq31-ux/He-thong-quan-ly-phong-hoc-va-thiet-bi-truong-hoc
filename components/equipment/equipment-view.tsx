@@ -117,6 +117,12 @@ export function EquipmentView({
     0,
   );
 
+  const availableQuantity = equipment.reduce(
+    (total, item) =>
+      total + (item.availableQuantity ?? item.quantity),
+    0,
+  );
+
   const goodItems = equipment.filter(
     (item) => item.status === "Tốt",
   ).length;
@@ -137,6 +143,12 @@ export function EquipmentView({
       value: totalQuantity,
       icon: Wrench,
       className: "bg-violet-50 text-violet-700",
+    },
+    {
+      title: "Còn khả dụng",
+      value: availableQuantity,
+      icon: CircleCheckBig,
+      className: "bg-cyan-50 text-cyan-700",
     },
     {
       title: "Hoạt động tốt",
@@ -197,7 +209,7 @@ export function EquipmentView({
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {summaries.map((item) => {
           const Icon = item.icon;
 
@@ -258,7 +270,7 @@ export function EquipmentView({
                   <TableHead>Thiết bị</TableHead>
                   <TableHead>Loại</TableHead>
                   <TableHead>Phòng</TableHead>
-                  <TableHead>Số lượng</TableHead>
+                  <TableHead>Còn lại / Tổng</TableHead>
                   <TableHead>Tình trạng</TableHead>
                   <TableHead>Kiểm tra gần nhất</TableHead>
                   <TableHead className="pr-5 text-right">Thao tác</TableHead>
@@ -286,7 +298,14 @@ export function EquipmentView({
                       </p>
                     </TableCell>
 
-                    <TableCell>{item.quantity}</TableCell>
+                    <TableCell>
+                      <span className="font-medium">
+                        {item.availableQuantity ?? item.quantity}
+                      </span>
+                      <span className="text-slate-500">
+                        {" "}/ {item.quantity}
+                      </span>
+                    </TableCell>
 
                     <TableCell>
                       <Badge
@@ -348,17 +367,20 @@ export function EquipmentView({
         </CardContent>
       </Card>
 
-      <EquipmentEditDialog
-        equipment={editingEquipment}
-        rooms={rooms}
-        open={editingEquipment !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setEditingEquipment(null);
-          }
-        }}
-        onSave={onUpdateEquipment}
-      />
+      {editingEquipment && (
+        <EquipmentEditDialog
+          key={editingEquipment.id}
+          equipment={editingEquipment}
+          rooms={rooms}
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setEditingEquipment(null);
+            }
+          }}
+          onSave={onUpdateEquipment}
+        />
+      )}
     </div>
   );
 }

@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { requireApiUser } from "@/lib/api-auth";
+import {
+  FACILITY_MANAGER_ROLES,
+  requireApiUser,
+} from "@/lib/api-auth";
 
 import { prisma } from "@/lib/prisma";
 
@@ -14,12 +17,18 @@ if (!auth.ok) {
   return auth.response;
 }
 
+    const canManage = FACILITY_MANAGER_ROLES.includes(
+      auth.user.role as (typeof FACILITY_MANAGER_ROLES)[number],
+    );
+
     const [
       roomRecords,
       equipmentRecords,
       bookingRecords,
       incidentRecords,
       userRecords,
+      activeBorrowings,
+      activeMaintenance,
     ] = await Promise.all([
       prisma.room.findMany({
         orderBy: {
@@ -37,6 +46,14 @@ if (!auth.ok) {
       }),
 
       prisma.booking.findMany({
+        where: canManage
+          ? undefined
+          : {
+              OR: [
+                { userId: auth.user.id },
+                { status: { in: ["Đã duyệt", "Đã hoàn thành"] } },
+              ],
+            },
         include: {
           room: true,
         },
@@ -46,6 +63,9 @@ if (!auth.ok) {
       }),
 
       prisma.incident.findMany({
+        where: canManage
+          ? undefined
+          : { reportedById: auth.user.id },
         include: {
           room: true,
         },
@@ -55,11 +75,73 @@ if (!auth.ok) {
       }),
 
       prisma.systemUser.findMany({
+        where: canManage ? undefined : { id: -1 },
         orderBy: {
           id: "asc",
         },
       }),
+
+      prisma.equipmentBorrowing.groupBy({
+        by: ["equipmentId"],
+        where: {
+          status: {
+            in: ["Đã duyệt", "Đang mượn", "Quá hạn"],
+          },
+        },
+        _sum: {
+          quantity: true,
+        },
+      }),
+      prisma.maintenance.groupBy({
+        by: ["equipmentId"],
+        where: {
+          status: "Đang xử lý",
+        },
+        _sum: {
+          quantity: true,
+        },
+      }),
     ]);
+
+    const borrowedQuantityByEquipment = new Map(
+      activeBorrowings.map((borrowing) => [
+        borrowing.equipmentId,
+        borrowing._sum.quantity ?? 0,
+      ]),
+    );
+    const maintenanceQuantityByEquipment = new Map(
+      activeMaintenance.map((maintenance) => [
+        maintenance.equipmentId,
+        maintenance._sum.quantity ?? 0,
+      ]),
+    );
+    const availabilityByEquipment = new Map<number, number>();
+
+    await Promise.all(
+      equipmentRecords.map(async (item) => {
+        const availableQuantity =
+          item.status === "Hỏng"
+            ? 0
+            : Math.max(
+                0,
+                item.quantity -
+                  (borrowedQuantityByEquipment.get(item.id) ?? 0) -
+                  (maintenanceQuantityByEquipment.get(item.id) ?? 0),
+              );
+
+        if (availableQuantity !== item.availableQuantity) {
+          await prisma.equipment.updateMany({
+            where: {
+              id: item.id,
+              availableQuantity: item.availableQuantity,
+            },
+            data: { availableQuantity },
+          });
+        }
+
+        availabilityByEquipment.set(item.id, availableQuantity);
+      }),
+    );
 
     const rooms = roomRecords.map((room) => ({
       id: room.id,
@@ -81,6 +163,8 @@ if (!auth.ok) {
         type: item.type,
         room: item.room.code,
         quantity: item.quantity,
+        availableQuantity:
+          availabilityByEquipment.get(item.id) ?? item.availableQuantity,
         status: item.status,
         lastChecked: item.lastChecked,
       }),
@@ -93,8 +177,26 @@ if (!auth.ok) {
         time: booking.time,
         room: booking.room.code,
         course: booking.course,
-        person: booking.person,
+        person:
+          canManage || booking.userId === auth.user.id
+            ? booking.person
+            : "Đã đăng ký",
         status: booking.status,
+        userId:
+          canManage || booking.userId === auth.user.id
+            ? booking.userId
+            : null,
+        attendeeCount: booking.attendeeCount,
+        note:
+          canManage || booking.userId === auth.user.id
+            ? booking.note
+            : null,
+        rejectionReason:
+          canManage || booking.userId === auth.user.id
+            ? booking.rejectionReason
+            : null,
+        approvedById: canManage ? booking.approvedById : null,
+        approvedAt: booking.approvedAt,
       }),
     );
 

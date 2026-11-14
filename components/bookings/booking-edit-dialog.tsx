@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useState,
-  type FormEvent,
-} from "react";
+import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -52,24 +48,19 @@ export function BookingEditDialog({
   onOpenChange,
   onSave,
 }: BookingEditDialogProps) {
-  const [form, setForm] =
-    useState<BookingFormState>(EMPTY_FORM);
+  const [form, setForm] = useState<BookingFormState>(() =>
+    booking
+      ? {
+          date: booking.date,
+          time: booking.time,
+          room: booking.room,
+          course: booking.course,
+          person: booking.person,
+        }
+      : EMPTY_FORM,
+  );
 
   const [isSaving, setIsSaving] = useState(false);
-
-  useEffect(() => {
-    if (!booking) {
-      return;
-    }
-
-    setForm({
-      date: booking.date,
-      time: booking.time,
-      room: booking.room,
-      course: booking.course,
-      person: booking.person,
-    });
-  }, [booking]);
 
   const updateField = <
     K extends keyof BookingFormState,
@@ -207,11 +198,11 @@ export function BookingEditDialog({
                   <option
                     key={room.id}
                     value={room.code}
-                    disabled={room.status === "Bảo trì"}
+                    disabled={["Bảo trì", "Tạm khóa", "Ngừng sử dụng"].includes(room.status)}
                   >
                     {room.code} - {room.name}
-                    {room.status === "Bảo trì"
-                      ? " (Bảo trì)"
+                      {["Bảo trì", "Tạm khóa", "Ngừng sử dụng"].includes(room.status)
+                        ? ` (${room.status})`
                       : ""}
                   </option>
                 ))}
