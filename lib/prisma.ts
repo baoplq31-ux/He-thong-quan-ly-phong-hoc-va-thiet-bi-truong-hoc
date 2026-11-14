@@ -1,6 +1,6 @@
 import "dotenv/config";
 
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -9,11 +9,14 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient() {
-  const connectionString =
-    process.env.DATABASE_URL ?? "file:./dev.db";
+  const connectionString = process.env.DATABASE_URL;
 
-  const adapter = new PrismaBetterSqlite3({
-    url: connectionString,
+  if (!connectionString) {
+    throw new Error("DATABASE_URL chưa được cấu hình.");
+  }
+
+  const adapter = new PrismaPg({
+    connectionString,
   });
 
   return new PrismaClient({
