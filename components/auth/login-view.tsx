@@ -117,7 +117,7 @@ export function LoginView({
 
           <p className="mt-5 text-lg leading-8 text-slate-400">
             Dữ liệu tài khoản đang được xác thực trực
-            tiếp từ cơ sở dữ liệu SQLite.
+            tiếp từ cơ sở dữ liệu PostgreSQL.
           </p>
         </div>
 
